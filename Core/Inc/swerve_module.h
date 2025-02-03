@@ -35,6 +35,10 @@ typedef struct {
     // Internal state
     float prev_error;
     float integral;
+
+    // Steering Motor Parameters
+    uint16_t max_pwm;
+
 } SteeringMotor;
 
 // Driving Motor Configuration Structure
@@ -59,7 +63,7 @@ typedef struct {
 // Public functions
 void SM_Init(SwerveModule* module);
 void SM_UpdateSteering(SwerveModule* module, float target_angle);
-void SM_UpdateDriving(SwerveModule* module, uint16_t target_speed);
+void SM_UpdateDriving(SwerveModule* module, float speed);
 float SM_GetCurrentAngle(SwerveModule* module);
 bool SM_SteeringAtTarget(SwerveModule* module, float target_angle, float tolerance);
 void SM_CalibrateESC(DrivingMotor* motor);

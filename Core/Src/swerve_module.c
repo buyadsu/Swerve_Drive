@@ -22,7 +22,7 @@ void SM_Init(SwerveModule* module) {
 
     // Initialize driving motor PWM
     HAL_TIM_PWM_Start(module->driving.pwm_tim, module->driving.pwm_channel);
-
+    __HAL_TIM_SET_COMPARE(module->driving.pwm_tim, module->driving.pwm_channel, module->driving.arming_pulse);
     // Reset PID parameters
     module->steering.prev_error = 0.0f;
     module->steering.integral = 0.0f;
@@ -34,7 +34,8 @@ void SM_UpdateSteering(SwerveModule* module, float target_angle) {
     set_steering_pwm(&module->steering, (int16_t)pid_output);
 }
 
-void SM_UpdateDriving(SwerveModule* module, uint16_t target_speed) {
+void SM_UpdateDriving(SwerveModule* module, float speed) {
+	uint16_t target_speed = abs(speed) * module->driving.max_pulse;
     constrain_pulse_width(&target_speed, module->driving.min_pulse, module->driving.max_pulse);
     __HAL_TIM_SET_COMPARE(module->driving.pwm_tim, module->driving.pwm_channel, target_speed);
 }

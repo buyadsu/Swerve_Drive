@@ -33,7 +33,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DEBUG_PRINT
-#define TEST
+//#define TEST
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -96,7 +96,8 @@ int main(void)
 	      .Ki = 0.1f,
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
-	      .dt = 0.01f
+	      .dt = 0.01f,
+		  .max_pwm = 199
 	  },
 	  .driving = {
 	      .pwm_tim = &htim2,
@@ -119,7 +120,8 @@ int main(void)
 	      .Ki = 0.1f,
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
-	      .dt = 0.01f
+	      .dt = 0.01f,
+		  .max_pwm = 199
 	  },
 	  .driving = {
 	      .pwm_tim = &htim2,
@@ -142,7 +144,8 @@ int main(void)
 	      .Ki = 0.1f,
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
-	      .dt = 0.01f
+	      .dt = 0.01f,
+		  .max_pwm = 199
 	  },
 	  .driving = {
 	      .pwm_tim = &htim2,
@@ -165,7 +168,8 @@ int main(void)
 	      .Ki = 0.1f,
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
-	      .dt = 0.01f
+	      .dt = 0.01f,
+		  .max_pwm = 199
 	  },
 	  .driving = {
 	      .pwm_tim = &htim2,
@@ -210,7 +214,10 @@ int main(void)
   MX_TIM8_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  SM_CalibrateESC(&moduleRF.driving);
+  SM_CalibrateESC(&moduleLF.driving);
+  SM_CalibrateESC(&moduleRB.driving);
+  SM_CalibrateESC(&moduleLB.driving);
   /* USER CODE END 2 */
 
   /* Initialize led */
@@ -233,7 +240,7 @@ int main(void)
   /* USER CODE BEGIN BSP */
 
   /* -- Sample board code to send message over COM1 port ---- */
-  printf("Welcome to STM32 world !\n\r");
+  printf("Welcome to STM32 world ! ready.\n\r");
 
   /* -- Sample board code to switch on led ---- */
   BSP_LED_On(LED_GREEN);
@@ -261,27 +268,58 @@ int main(void)
     JOYSTICK_Process();
 
     if (JOYSTICK_NewDataAvailable()) {
-        JoystickData data = JOYSTICK_GetData();
+    	JoystickData data = JOYSTICK_GetData();
+
 #ifdef DEBUG_PRINT
         printf("X: %ld, Y: %ld, RX: %ld\n", data.axisX, data.axisY, data.axisRX);
 #endif
-       float xSpeed = (float)data.axisX / 512.0f;
-       float ySpeed = (float)data.axisY / -512.0f;
-       float rot = (float)data.axisRX / 512.0f;
+
+        float xSpeed = (float)data.axisX / 512.0f;
+        float ySpeed = (float)data.axisY / -512.0f;
+        float rot = (float)data.axisRX / 512.0f;
     }
 
-	// In main loop
-	float target_angle = 45.0f;  // From kinematics
-	uint16_t target_speed = 1500;
+#ifdef TEST
+		float target_angle = 45.0f;  // From kinematics
+		float target_speed = 0.35;
 
-	SM_UpdateSteering(&moduleRF, target_angle);
-	SM_UpdateDriving(&moduleRF, target_speed);
+		SM_UpdateSteering(&moduleRF, target_angle);
+		SM_UpdateDriving(&moduleRF, target_speed);
 
-	if(SM_SteeringAtTarget(&moduleRF, target_angle, 1.0f)) {
-	    // Reached target angle
-	}
+		SM_UpdateSteering(&moduleLF, target_angle);
+		SM_UpdateDriving(&moduleLF, target_speed);
 
-    HAL_Delay(10);
+		SM_UpdateSteering(&moduleRB, target_angle);
+		SM_UpdateDriving(&moduleRB, target_speed);
+
+		SM_UpdateSteering(&moduleLB, target_angle);
+		SM_UpdateDriving(&moduleLB, target_speed);
+
+		if(SM_SteeringAtTarget(&moduleRF, target_angle, 1.0f)) {
+			// Reached target angle
+			printf("Reached target angle moduleRF");
+		}
+
+		if(SM_SteeringAtTarget(&moduleLF, target_angle, 1.0f)) {
+			// Reached target angle
+			printf("Reached target angle moduleLF");
+		}
+
+		if(SM_SteeringAtTarget(&moduleRB, target_angle, 1.0f)) {
+			// Reached target angle
+			printf("Reached target angle moduleRB");
+		}
+
+		if(SM_SteeringAtTarget(&moduleLB, target_angle, 1.0f)) {
+			// Reached target angle
+			printf("Reached target angle moduleLB");
+		}
+
+		HAL_Delay(10);
+#else
+
+
+#endif
 
   }
   /* USER CODE END 3 */
