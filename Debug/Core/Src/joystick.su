@@ -1,0 +1,5 @@
+../Core/Src/joystick.c:17:6:JOYSTICK_Init	16	static
+../Core/Src/joystick.c:23:6:JOYSTICK_SetTimeout	16	static
+../Core/Src/joystick.c:27:6:JOYSTICK_Process	72	static
+../Core/Src/joystick.c:64:6:JOYSTICK_NewDataAvailable	4	static
+../Core/Src/joystick.c:68:14:JOYSTICK_GetData	16	static
