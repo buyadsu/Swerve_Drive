@@ -33,6 +33,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DEBUG_PRINT
+#define TEST
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -90,7 +91,7 @@ int main(void)
 	      .dir_gpio_pin = IN1_Pin,
 	      .pwm_tim = &htim1,
 	      .pwm_channel = TIM_CHANNEL_1,
-          .encoder_tim = &htim2,
+          .encoder_tim = &htim3,
 	      .Kp = 1.0f,
 	      .Ki = 0.1f,
 	      .Kd = 0.01f,
@@ -98,8 +99,77 @@ int main(void)
 	      .dt = 0.01f
 	  },
 	  .driving = {
-	      .pwm_tim = &htim4,
+	      .pwm_tim = &htim2,
 	      .pwm_channel = TIM_CHANNEL_1,
+	      .min_pulse = 1100,
+	      .max_pulse = 1900,
+	      .arming_pulse = 1099
+	  },
+	  .counts_per_degree = 2000.0f / 360.0f  // Adjust based on encoder
+  };
+
+  SwerveModule moduleLF = {	// Configuration moduleRF
+	  .steering = {
+	      .dir_gpio_port = IN2_GPIO_Port,
+	      .dir_gpio_pin = IN2_Pin,
+	      .pwm_tim = &htim1,
+	      .pwm_channel = TIM_CHANNEL_2,
+          .encoder_tim = &htim4,
+	      .Kp = 1.0f,
+	      .Ki = 0.1f,
+	      .Kd = 0.01f,
+	      .integral_limit = 500.0f,
+	      .dt = 0.01f
+	  },
+	  .driving = {
+	      .pwm_tim = &htim2,
+	      .pwm_channel = TIM_CHANNEL_2,
+	      .min_pulse = 1100,
+	      .max_pulse = 1900,
+	      .arming_pulse = 1099
+	  },
+	  .counts_per_degree = 2000.0f / 360.0f  // Adjust based on encoder
+  };
+
+  SwerveModule moduleRB = {	// Configuration moduleRF
+	  .steering = {
+	      .dir_gpio_port = IN3_GPIO_Port,
+	      .dir_gpio_pin = IN3_Pin,
+	      .pwm_tim = &htim1,
+	      .pwm_channel = TIM_CHANNEL_3,
+          .encoder_tim = &htim5,
+	      .Kp = 1.0f,
+	      .Ki = 0.1f,
+	      .Kd = 0.01f,
+	      .integral_limit = 500.0f,
+	      .dt = 0.01f
+	  },
+	  .driving = {
+	      .pwm_tim = &htim2,
+	      .pwm_channel = TIM_CHANNEL_3,
+	      .min_pulse = 1100,
+	      .max_pulse = 1900,
+	      .arming_pulse = 1099
+	  },
+	  .counts_per_degree = 2000.0f / 360.0f  // Adjust based on encoder
+  };
+
+  SwerveModule moduleLB = {	// Configuration moduleRF
+	  .steering = {
+	      .dir_gpio_port = IN4_GPIO_Port,
+	      .dir_gpio_pin = IN4_Pin,
+	      .pwm_tim = &htim1,
+	      .pwm_channel = TIM_CHANNEL_4,
+          .encoder_tim = &htim8,
+	      .Kp = 1.0f,
+	      .Ki = 0.1f,
+	      .Kd = 0.01f,
+	      .integral_limit = 500.0f,
+	      .dt = 0.01f
+	  },
+	  .driving = {
+	      .pwm_tim = &htim2,
+	      .pwm_channel = TIM_CHANNEL_4,
 	      .min_pulse = 1100,
 	      .max_pulse = 1900,
 	      .arming_pulse = 1099
@@ -115,9 +185,12 @@ int main(void)
 
   /* USER CODE BEGIN Init */
   JOYSTICK_Init(&huart3);  // Pass your UART handle
-//  JOYSTICK_SetTimeout(50); // Optional: Set custom timeout
+  JOYSTICK_SetTimeout(50); // Optional: Set custom timeout
 	// Initialization
   SM_Init(&moduleRF);
+  SM_Init(&moduleLF);
+  SM_Init(&moduleRB);
+  SM_Init(&moduleLB);
   /* USER CODE END Init */
 
   /* Configure the system clock */
