@@ -22,7 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "joystick.h"
-
+#include "swerve_module.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -84,7 +84,28 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  SwerveModule moduleRF = {	// Configuration moduleRF
+	  .steering = {
+	      .dir_gpio_port = IN1_GPIO_Port,
+	      .dir_gpio_pin = IN1_Pin,
+	      .pwm_tim = &htim1,
+	      .pwm_channel = TIM_CHANNEL_1,
+          .encoder_tim = &htim2,
+	      .Kp = 1.0f,
+	      .Ki = 0.1f,
+	      .Kd = 0.01f,
+	      .integral_limit = 500.0f,
+	      .dt = 0.01f
+	  },
+	  .driving = {
+	      .pwm_tim = &htim4,
+	      .pwm_channel = TIM_CHANNEL_1,
+	      .min_pulse = 1100,
+	      .max_pulse = 1900,
+	      .arming_pulse = 1099
+	  },
+	  .counts_per_degree = 2000.0f / 360.0f  // Adjust based on encoder
+  };
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -95,7 +116,8 @@ int main(void)
   /* USER CODE BEGIN Init */
   JOYSTICK_Init(&huart3);  // Pass your UART handle
 //  JOYSTICK_SetTimeout(50); // Optional: Set custom timeout
-
+	// Initialization
+  SM_Init(&moduleRF);
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -174,6 +196,17 @@ int main(void)
        float ySpeed = (float)data.axisY / -512.0f;
        float rot = (float)data.axisRX / 512.0f;
     }
+
+	// In main loop
+	float target_angle = 45.0f;  // From kinematics
+	uint16_t target_speed = 1500;
+
+	SM_UpdateSteering(&moduleRF, target_angle);
+	SM_UpdateDriving(&moduleRF, target_speed);
+
+	if(SM_SteeringAtTarget(&moduleRF, target_angle, 1.0f)) {
+	    // Reached target angle
+	}
 
     HAL_Delay(10);
 

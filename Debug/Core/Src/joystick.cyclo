@@ -1,5 +1,5 @@
-../Core/Src/joystick.c:17:6:JOYSTICK_Init	1
-../Core/Src/joystick.c:23:6:JOYSTICK_SetTimeout	1
-../Core/Src/joystick.c:27:6:JOYSTICK_Process	4
-../Core/Src/joystick.c:64:6:JOYSTICK_NewDataAvailable	1
-../Core/Src/joystick.c:68:14:JOYSTICK_GetData	1
+../Core/Src/joystick.c:19:6:JOYSTICK_Init	1
+../Core/Src/joystick.c:25:6:JOYSTICK_SetTimeout	1
+../Core/Src/joystick.c:29:6:JOYSTICK_Process	4
+../Core/Src/joystick.c:66:6:JOYSTICK_NewDataAvailable	1
+../Core/Src/joystick.c:70:14:JOYSTICK_GetData	1
