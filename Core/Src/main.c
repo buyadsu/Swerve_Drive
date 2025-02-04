@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "joystick.h"
 #include "swerve_module.h"
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -34,6 +35,14 @@
 /* USER CODE BEGIN PD */
 #define DEBUG_PRINT
 //#define TEST
+
+// Robot dimensions (adjust according to actual measurements)
+#define ROBOT_LENGTH 0.5f // Distance from front to back wheels (meters)
+#define ROBOT_WIDTH 0.5f  // Distance from left to right wheels (meters)
+#define DEADZONE 0.1f     // Deadzone to ignore small joystick inputs
+#define MAX_CHANGE_RATE 0.05f  // Limits the change per loop iteration
+#define TIMEOUT_MS 500         // Timeout for joystick disconnect detection
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -55,7 +64,8 @@ TIM_HandleTypeDef htim8;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-
+float xSpeed = 0.0f, ySpeed = 0.0f, rot = 0.0f;
+uint32_t lastJoystickUpdate = 0;  // Store the last time we received valid joystick data
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -240,8 +250,7 @@ int main(void)
   /* USER CODE BEGIN BSP */
 
   /* -- Sample board code to send message over COM1 port ---- */
-  printf("Welcome to STM32 world ! ready.\n\r");
-
+  printf("Swerve Drive Robot Initialized\n");
   /* -- Sample board code to switch on led ---- */
   BSP_LED_On(LED_GREEN);
 
@@ -269,14 +278,33 @@ int main(void)
 
     if (JOYSTICK_NewDataAvailable()) {
     	JoystickData data = JOYSTICK_GetData();
+    	lastJoystickUpdate = HAL_GetTick();  // Reset timeout timer
+
 
 #ifdef DEBUG_PRINT
         printf("X: %ld, Y: %ld, RX: %ld\n", data.axisX, data.axisY, data.axisRX);
 #endif
 
-        float xSpeed = (float)data.axisX / 512.0f;
-        float ySpeed = (float)data.axisY / -512.0f;
-        float rot = (float)data.axisRX / 512.0f;
+        xSpeed = (float)data.axisX / 512.0f;
+        ySpeed = (float)data.axisY / -512.0f;
+        rot = (float)data.axisRX / 512.0f;
+
+        // Apply deadzone
+        if (fabsf(xSpeed) < DEADZONE) xSpeed = 0.0f;
+        if (fabsf(ySpeed) < DEADZONE) ySpeed = 0.0f;
+        if (fabsf(rot) < DEADZONE) rot = 0.0f;
+
+        // Smooth input changes to prevent jerky motion
+//        xSpeed += fminf(fmaxf(newXSpeed - xSpeed, -MAX_CHANGE_RATE), MAX_CHANGE_RATE);
+//        ySpeed += fminf(fmaxf(newYSpeed - ySpeed, -MAX_CHANGE_RATE), MAX_CHANGE_RATE);
+//        rot += fminf(fmaxf(newRot - rot, -MAX_CHANGE_RATE), MAX_CHANGE_RATE);
+    }
+
+    // If no joystick data received for TIMEOUT_MS, stop the motors
+    if (HAL_GetTick() - lastJoystickUpdate > TIMEOUT_MS) {
+        xSpeed = 0.0f;
+        ySpeed = 0.0f;
+        rot = 0.0f;
     }
 
 #ifdef TEST
@@ -317,9 +345,68 @@ int main(void)
 
 		HAL_Delay(10);
 #else
+		// Kinematic calculations for each module
+	    // Front Right (RF)
+	    float rf_x = xSpeed - (rot * (ROBOT_LENGTH / 2.0f));
+	    float rf_y = ySpeed + (rot * (ROBOT_WIDTH / 2.0f));
+	    float rf_angle = atan2f(rf_y, rf_x) * (180.0f / (float)M_PI);
+	    float rf_speed = sqrtf(rf_x * rf_x + rf_y * rf_y);
 
+	    // Front Left (LF)
+	    float lf_x = xSpeed - (rot * (ROBOT_LENGTH / 2.0f));
+	    float lf_y = ySpeed - (rot * (ROBOT_WIDTH / 2.0f));
+	    float lf_angle = atan2f(lf_y, lf_x) * (180.0f / (float)M_PI);
+	    float lf_speed = sqrtf(lf_x * lf_x + lf_y * lf_y);
 
-#endif
+	    // Rear Right (RB)
+	    float rb_x = xSpeed + (rot * (ROBOT_LENGTH / 2.0f));
+	    float rb_y = ySpeed + (rot * (ROBOT_WIDTH / 2.0f));
+	    float rb_angle = atan2f(rb_y, rb_x) * (180.0f / (float)M_PI);
+	    float rb_speed = sqrtf(rb_x * rb_x + rb_y * rb_y);
+
+	    // Rear Left (LB)
+	    float lb_x = xSpeed + (rot * (ROBOT_LENGTH / 2.0f));
+	    float lb_y = ySpeed - (rot * (ROBOT_WIDTH / 2.0f));
+	    float lb_angle = atan2f(lb_y, lb_x) * (180.0f / (float)M_PI);
+	    float lb_speed = sqrtf(lb_x * lb_x + lb_y * lb_y);
+
+	    // Normalize speeds if any exceeds 1.0
+	    float max_speed = fmaxf(fmaxf(rf_speed, lf_speed), fmaxf(rb_speed, lb_speed));
+	    if (max_speed > 1.0f && max_speed > 0.0f) {
+	    	rf_speed /= max_speed;
+	        lf_speed /= max_speed;
+	        rb_speed /= max_speed;
+	        lb_speed /= max_speed;
+	    }
+
+//	    rf_angle = fmodf((rf_angle + 360.0f), 360.0f);
+//	    lf_angle = fmodf((lf_angle + 360.0f), 360.0f);
+//	    rb_angle = fmodf((rb_angle + 360.0f), 360.0f);
+//	    lb_angle = fmodf((lb_angle + 360.0f), 360.0f);
+
+	    // Update modules
+	    SM_UpdateSteering(&moduleRF, rf_angle);
+	    SM_UpdateDriving(&moduleRF, rf_speed);
+
+	    SM_UpdateSteering(&moduleLF, lf_angle);
+	    SM_UpdateDriving(&moduleLF, lf_speed);
+
+	    SM_UpdateSteering(&moduleRB, rb_angle);
+	    SM_UpdateDriving(&moduleRB, rb_speed);
+
+	    SM_UpdateSteering(&moduleLB, lb_angle);
+	    SM_UpdateDriving(&moduleLB, lb_speed);
+
+#ifdef DEBUG_PRINT
+	    // Debug prints for each wheel's speed and angle
+	    printf("\n==== Wheel Data ====\n");
+	    printf("RF -> Angle: %.2f°, Speed: %.2f\n", rf_angle, rf_speed);
+	    printf("LF -> Angle: %.2f°, Speed: %.2f\n", lf_angle, lf_speed);
+	    printf("RB -> Angle: %.2f°, Speed: %.2f\n", rb_angle, rb_speed);
+	    printf("LB -> Angle: %.2f°, Speed: %.2f\n", lb_angle, lb_speed);
+#endif // DEBUG_PRINT
+
+#endif // TEST
 
   }
   /* USER CODE END 3 */

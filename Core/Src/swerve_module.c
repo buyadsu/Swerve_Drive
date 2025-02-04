@@ -35,7 +35,7 @@ void SM_UpdateSteering(SwerveModule* module, float target_angle) {
 }
 
 void SM_UpdateDriving(SwerveModule* module, float speed) {
-	uint16_t target_speed = abs(speed) * module->driving.max_pulse;
+	uint16_t target_speed = fabsf(speed) * module->driving.max_pulse;
     constrain_pulse_width(&target_speed, module->driving.min_pulse, module->driving.max_pulse);
     __HAL_TIM_SET_COMPARE(module->driving.pwm_tim, module->driving.pwm_channel, target_speed);
 }
