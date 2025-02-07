@@ -8,9 +8,14 @@
 
 #include "swerve_module.h"
 
+// Debug print
+//#define DEBUG_PRINT
+
 // Private helper functions
+static float normalize_angle_error(float error);
 static float steering_pid_update(SteeringMotor* motor, float target, float current);
-static void set_steering_pwm(SteeringMotor* motor, int16_t pwm);
+static int32_t clamp_pid_output(float pid_output, int32_t min_pwm, int32_t max_pwm);
+static void set_steering_pwm(SteeringMotor* motor, int32_t pwm);
 static void constrain_pulse_width(uint16_t* pulse, uint16_t min, uint16_t max);
 
 void SM_Init(SwerveModule* module) {
@@ -28,9 +33,19 @@ void SM_Init(SwerveModule* module) {
     module->steering.integral = 0.0f;
 }
 
+static int32_t clamp_pid_output(float pid_output, int32_t min_pwm, int32_t max_pwm) {
+    if (pid_output < min_pwm) return min_pwm;
+    if (pid_output > max_pwm) return max_pwm;
+    return (int32_t)pid_output;
+}
+
 void SM_UpdateSteering(SwerveModule* module, float target_angle) {
     float current = SM_GetCurrentAngle(module);
     float pid_output = steering_pid_update(&module->steering, target_angle, current);
+
+    // Clamp the PID output if necessary (choose appropriate PWM limits)
+    pid_output = clamp_pid_output(pid_output, -module->steering.max_pwm, module->steering.max_pwm);
+
     set_steering_pwm(&module->steering, (int16_t)pid_output);
 }
 
@@ -38,25 +53,36 @@ void SM_UpdateDriving(SwerveModule* module, float speed) {
 	uint16_t target_speed = module->driving.min_pulse + (uint16_t)((module->driving.max_pulse - module->driving.min_pulse) * fabsf(speed));
     constrain_pulse_width(&target_speed, module->driving.min_pulse, module->driving.max_pulse);
 
-    // For debugging, you might print the pulse:
-     printf("Driving speed: %d\n", target_speed);
-
-     printf("Driving ARR: %lu\n", __HAL_TIM_GET_AUTORELOAD(module->driving.pwm_tim));
-     printf("Driving PSC: %lu, ARR: %lu\n", module->driving.pwm_tim->Instance->PSC, module->driving.pwm_tim->Instance->ARR);
+	#ifdef DEBUG_PRINT    // For debugging, you might print the pulse:
+		 printf("Driving speed: %d\n", target_speed);
+		 printf("Driving PSC: %lu, ARR: %lu\n", module->driving.pwm_tim->Instance->PSC, module->driving.pwm_tim->Instance->ARR);
+	#endif
 
     __HAL_TIM_SET_COMPARE(module->driving.pwm_tim, module->driving.pwm_channel, target_speed);
 }
 
 float SM_GetCurrentAngle(SwerveModule* module) {
-    int32_t counts = module->steering.encoder_tim->Instance->CNT;
+    int32_t counts = (module->steering.encoder_tim->Instance == TIM5)     // Check if the encoder timer is 32-bit (e.g., TIM5)
+        ? (int32_t)(module->steering.encoder_tim->Instance->CNT)        // For 32-bit timer, use the full value
+        : (int16_t)(module->steering.encoder_tim->Instance->CNT);        // For 16-bit timers, cast the CNT register to a signed 16-bit integer.
+    // This converts counter values >32767 to negative numbers.
 
-    printf("Encoder Counts: %ld\n", counts);
+	#ifdef DEBUG_PRINT
+		printf("Encoder Counts: %ld\n", counts);
+	#endif
 
-    return (counts * 360.0f) / module->counts_per_degree;
+    // Convert the encoder counts to an angle.
+    // (Assumes module->counts_per_degree is set appropriately.)
+    return counts * module->counts_per_degree * 360.0f;
 }
 
 bool SM_SteeringAtTarget(SwerveModule* module, float target_angle, float tolerance) {
     float current = SM_GetCurrentAngle(module);
+
+//#ifdef DEBUG_PRINT    // For debugging, you might print the pulse:
+    printf("Current angle: %f Target angle: %f\n", current, target_angle);
+//#endif
+
     return fabsf(current - target_angle) <= tolerance;
 }
 
@@ -78,9 +104,17 @@ void SM_CalibrateESC(DrivingMotor* motor) {
 	__HAL_TIM_SET_COMPARE(motor->pwm_tim, motor->pwm_channel, motor->arming_pulse);
 }
 
+static float normalize_angle_error(float error) {
+    // Wrap error to [-180, 180)
+    error = fmodf(error + 180.0f, 360.0f);
+    if (error < 0)
+        error += 360.0f;
+    return error - 180.0f;
+}
+
 // Private function implementations
 static float steering_pid_update(SteeringMotor* motor, float target, float current) {
-    float error = target - current;
+    float error = normalize_angle_error(target - current);
 
     // Integral term with clamping
     motor->integral += error * motor->dt;
@@ -93,14 +127,18 @@ static float steering_pid_update(SteeringMotor* motor, float target, float curre
     return (motor->Kp * error) + (motor->Ki * motor->integral) + (motor->Kd * derivative);
 }
 
-static void set_steering_pwm(SteeringMotor* motor, int16_t pwm) {
+
+static void set_steering_pwm(SteeringMotor* motor, int32_t pwm) {
     bool direction = (pwm <= 0);
-    pwm = fminf(fabsf(pwm), __HAL_TIM_GET_AUTORELOAD(motor->pwm_tim));
+    pwm = (int32_t)fminf(fabsf(pwm), __HAL_TIM_GET_AUTORELOAD(motor->pwm_tim));
+
+	#ifdef DEBUG_PRINT
+		printf("Steering PSC: %lu, ARR: %lu\n", motor->pwm_tim->Instance->PSC, motor->pwm_tim->Instance->ARR);
+		printf("Direction: %d, pwm: %d\n", direction, pwm);
+	#endif
 
     HAL_GPIO_WritePin(motor->dir_gpio_port, motor->dir_gpio_pin, direction);
-    __HAL_TIM_SET_COMPARE(motor->pwm_tim, motor->pwm_channel, pwm);
-//    printf("Steering ARR: %lu\n", __HAL_TIM_GET_AUTORELOAD(motor->pwm_tim));
-    printf("Steering PSC: %lu, ARR: %lu\n", motor->pwm_tim->Instance->PSC, motor->pwm_tim->Instance->ARR);
+    __HAL_TIM_SET_COMPARE(motor->pwm_tim, motor->pwm_channel, (uint32_t)pwm);
 }
 
 static void constrain_pulse_width(uint16_t* pulse, uint16_t min, uint16_t max) {

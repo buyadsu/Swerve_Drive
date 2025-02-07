@@ -37,7 +37,7 @@ typedef struct {
     float integral;
 
     // Steering Motor Parameters
-    uint16_t max_pwm;
+    uint32_t max_pwm;
 
 } SteeringMotor;
 

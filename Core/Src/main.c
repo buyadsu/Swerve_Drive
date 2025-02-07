@@ -34,11 +34,13 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DEBUG_PRINT
-#define TEST
+//#define TEST
 
 // Robot dimensions (adjust according to actual measurements)
 #define ROBOT_LENGTH 0.5f // Distance from front to back wheels (meters)
 #define ROBOT_WIDTH 0.5f  // Distance from left to right wheels (meters)
+#define ROBOT_STEERING_GEAR_RATIO 2.0f // Gear ratio of steering motors
+#define STEERING_ENCODER_RESOLUTION 1000.0 // Encoder resolution
 #define DEADZONE 0.1f     // Deadzone to ignore small joystick inputs
 #define MAX_CHANGE_RATE 0.05f  // Limits the change per loop iteration
 #define TIMEOUT_MS 500         // Timeout for joystick disconnect detection
@@ -100,13 +102,13 @@ int main(void)
 	      .dir_gpio_port = IN1_GPIO_Port,
 	      .dir_gpio_pin = IN1_Pin,
 	      .pwm_tim = &htim1,
-	      .pwm_channel = TIM_CHANNEL_1,
+	      .pwm_channel = TIM_CHANNEL_4,
           .encoder_tim = &htim3,
 	      .Kp = 1.0f,
 	      .Ki = 0.1f,
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
-	      .dt = 0.01f,
+	      .dt = 0.1f,
 		  .max_pwm = 199
 	  },
 	  .driving = {
@@ -116,7 +118,7 @@ int main(void)
 	      .max_pulse = 1915-1,
 	      .arming_pulse = 1100-1
 	  },
-	  .counts_per_degree = 2000.0f / 360.0f  // Adjust based on encoder
+	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
   };
 
   SwerveModule moduleLF = {	// Configuration moduleRF
@@ -124,13 +126,13 @@ int main(void)
 	      .dir_gpio_port = IN2_GPIO_Port,
 	      .dir_gpio_pin = IN2_Pin,
 	      .pwm_tim = &htim1,
-	      .pwm_channel = TIM_CHANNEL_2,
+	      .pwm_channel = TIM_CHANNEL_3,
           .encoder_tim = &htim4,
 	      .Kp = 1.0f,
 	      .Ki = 0.1f,
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
-	      .dt = 0.01f,
+	      .dt = 0.1f,
 		  .max_pwm = 199
 	  },
 	  .driving = {
@@ -140,7 +142,7 @@ int main(void)
 	      .max_pulse = 1915-1,
 	      .arming_pulse = 1100-1
 	  },
-	  .counts_per_degree = 2000.0f / 360.0f  // Adjust based on encoder
+	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
   };
 
   SwerveModule moduleRB = {	// Configuration moduleRF
@@ -148,13 +150,13 @@ int main(void)
 	      .dir_gpio_port = IN3_GPIO_Port,
 	      .dir_gpio_pin = IN3_Pin,
 	      .pwm_tim = &htim1,
-	      .pwm_channel = TIM_CHANNEL_3,
+	      .pwm_channel = TIM_CHANNEL_2,
           .encoder_tim = &htim5,
-	      .Kp = 1.0f,
-	      .Ki = 0.1f,
-	      .Kd = 0.01f,
+		  .Kp = 2.0f,  // Increase proportional gain
+		  .Ki = 0.05f, // Reduce integral to prevent windup
+		  .Kd = 0.02f,
 	      .integral_limit = 500.0f,
-	      .dt = 0.01f,
+	      .dt = 0.1f,
 		  .max_pwm = 199
 	  },
 	  .driving = {
@@ -164,7 +166,7 @@ int main(void)
 	      .max_pulse = 1915-1,
 	      .arming_pulse = 1100-1
 	  },
-	  .counts_per_degree = 2000.0f / 360.0f  // Adjust based on encoder
+	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
   };
 
   SwerveModule moduleLB = {	// Configuration moduleRF
@@ -172,13 +174,13 @@ int main(void)
 	      .dir_gpio_port = IN4_GPIO_Port,
 	      .dir_gpio_pin = IN4_Pin,
 	      .pwm_tim = &htim1,
-	      .pwm_channel = TIM_CHANNEL_4,
+	      .pwm_channel = TIM_CHANNEL_1,
           .encoder_tim = &htim8,
 	      .Kp = 1.0f,
 	      .Ki = 0.1f,
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
-	      .dt = 0.01f,
+	      .dt = 0.1f,
 		  .max_pwm = 199
 	  },
 	  .driving = {
@@ -188,7 +190,7 @@ int main(void)
 	      .max_pulse = 1915-1,
 	      .arming_pulse = 1100-1
 	  },
-	  .counts_per_degree = 2000.0f / 360.0f  // Adjust based on encoder
+	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
   };
   /* USER CODE END 1 */
 
@@ -250,10 +252,10 @@ int main(void)
   /* -- Sample board code to switch on led ---- */
   BSP_LED_On(LED_GREEN);
 
-  __HAL_TIM_SET_COMPARE(&moduleRF.driving.pwm_tim, &moduleRF.driving.pwm_channel, &moduleRF.driving.min_pulse);
-  __HAL_TIM_SET_COMPARE(&moduleLF.driving.pwm_tim, &moduleLF.driving.pwm_channel, &moduleLF.driving.min_pulse);
-  __HAL_TIM_SET_COMPARE(&moduleRB.driving.pwm_tim, &moduleRB.driving.pwm_channel, &moduleRB.driving.min_pulse);
-  __HAL_TIM_SET_COMPARE(&moduleLB.driving.pwm_tim, &moduleLB.driving.pwm_channel, &moduleLB.driving.min_pulse);
+//  __HAL_TIM_SET_COMPARE(&moduleRF.driving.pwm_tim, &moduleRF.driving.pwm_channel, &moduleRF.driving.min_pulse);
+//  __HAL_TIM_SET_COMPARE(&moduleLF.driving.pwm_tim, &moduleLF.driving.pwm_channel, &moduleLF.driving.min_pulse);
+//  __HAL_TIM_SET_COMPARE(&moduleRB.driving.pwm_tim, &moduleRB.driving.pwm_channel, &moduleRB.driving.min_pulse);
+//  __HAL_TIM_SET_COMPARE(&moduleLB.driving.pwm_tim, &moduleLB.driving.pwm_channel, &moduleLB.driving.min_pulse);
 
 //  SM_CalibrateESC(&moduleRF.driving);
 //  SM_CalibrateESC(&moduleLF.driving);
@@ -274,16 +276,19 @@ int main(void)
       BspButtonState = BUTTON_RELEASED;
       /* -- Sample board code to toggle led ---- */
       BSP_LED_Toggle(LED_GREEN);
+      printf("ESC calibrate starting..\n");
 
       SM_CalibrateESC(&moduleRF.driving);
       SM_CalibrateESC(&moduleLF.driving);
       SM_CalibrateESC(&moduleRB.driving);
       SM_CalibrateESC(&moduleLB.driving);
 
-      __HAL_TIM_SET_COMPARE(&moduleRF.driving.pwm_tim, &moduleRF.driving.pwm_channel, &moduleRF.driving.min_pulse);
-      __HAL_TIM_SET_COMPARE(&moduleLF.driving.pwm_tim, &moduleLF.driving.pwm_channel, &moduleLF.driving.min_pulse);
-      __HAL_TIM_SET_COMPARE(&moduleRB.driving.pwm_tim, &moduleRB.driving.pwm_channel, &moduleRB.driving.min_pulse);
-      __HAL_TIM_SET_COMPARE(&moduleLB.driving.pwm_tim, &moduleLB.driving.pwm_channel, &moduleLB.driving.min_pulse);
+      printf("ESC calibrate done.\n");
+
+//      __HAL_TIM_SET_COMPARE(&moduleRF.driving.pwm_tim, &moduleRF.driving.pwm_channel, &moduleRF.driving.min_pulse);
+//      __HAL_TIM_SET_COMPARE(&moduleLF.driving.pwm_tim, &moduleLF.driving.pwm_channel, &moduleLF.driving.min_pulse);
+//      __HAL_TIM_SET_COMPARE(&moduleRB.driving.pwm_tim, &moduleRB.driving.pwm_channel, &moduleRB.driving.min_pulse);
+//      __HAL_TIM_SET_COMPARE(&moduleLB.driving.pwm_tim, &moduleLB.driving.pwm_channel, &moduleLB.driving.min_pulse);
 
       /* ..... Perform your action ..... */
     }
@@ -325,38 +330,40 @@ int main(void)
 
 #ifdef TEST
 		float target_angle = 45.0f;  // From kinematics
-		float target_speed = 0.35;
+		float target_speed = 0;
+
+		printf("RB Encoder: %ld\n", (int32_t)htim5.Instance->CNT);
 
 		SM_UpdateSteering(&moduleRF, target_angle);
 		SM_UpdateDriving(&moduleRF, target_speed);
 
 		SM_UpdateSteering(&moduleLF, target_angle);
 		SM_UpdateDriving(&moduleLF, target_speed);
-
+//
 		SM_UpdateSteering(&moduleRB, target_angle);
 		SM_UpdateDriving(&moduleRB, target_speed);
-
+//
 		SM_UpdateSteering(&moduleLB, target_angle);
 		SM_UpdateDriving(&moduleLB, target_speed);
 
 		if(SM_SteeringAtTarget(&moduleRF, target_angle, 1.0f)) {
 			// Reached target angle
-			printf("Reached target angle moduleRF");
+			printf("Reached target angle moduleRF\n");
 		}
 
 		if(SM_SteeringAtTarget(&moduleLF, target_angle, 1.0f)) {
 			// Reached target angle
-			printf("Reached target angle moduleLF");
+			printf("Reached target angle moduleLF\n");
 		}
 
 		if(SM_SteeringAtTarget(&moduleRB, target_angle, 1.0f)) {
 			// Reached target angle
-			printf("Reached target angle moduleRB");
+			printf("Reached target angle moduleRB\n");
 		}
 
 		if(SM_SteeringAtTarget(&moduleLB, target_angle, 1.0f)) {
 			// Reached target angle
-			printf("Reached target angle moduleLB");
+			printf("Reached target angle moduleLB\n");
 		}
 
 		HAL_Delay(10);
@@ -765,11 +772,11 @@ static void MX_TIM5_Init(void)
   sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 5;
+  sConfig.IC1Filter = 0;
   sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 5;
+  sConfig.IC2Filter = 0;
   if (HAL_TIM_Encoder_Init(&htim5, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -815,11 +822,11 @@ static void MX_TIM8_Init(void)
   sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 5;
+  sConfig.IC1Filter = 0;
   sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 5;
+  sConfig.IC2Filter = 0;
   if (HAL_TIM_Encoder_Init(&htim8, &sConfig) != HAL_OK)
   {
     Error_Handler();
