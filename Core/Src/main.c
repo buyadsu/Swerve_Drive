@@ -34,7 +34,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DEBUG_PRINT
-//#define TEST
+#define TEST
 
 // Robot dimensions (adjust according to actual measurements)
 #define ROBOT_LENGTH 0.5f // Distance from front to back wheels (meters)
@@ -112,9 +112,9 @@ int main(void)
 	  .driving = {
 	      .pwm_tim = &htim2,
 	      .pwm_channel = TIM_CHANNEL_1,
-	      .min_pulse = 1100,
-	      .max_pulse = 1900,
-	      .arming_pulse = 1099
+	      .min_pulse = 1110-1,
+	      .max_pulse = 1915-1,
+	      .arming_pulse = 1100-1
 	  },
 	  .counts_per_degree = 2000.0f / 360.0f  // Adjust based on encoder
   };
@@ -136,9 +136,9 @@ int main(void)
 	  .driving = {
 	      .pwm_tim = &htim2,
 	      .pwm_channel = TIM_CHANNEL_2,
-	      .min_pulse = 1100,
-	      .max_pulse = 1900,
-	      .arming_pulse = 1099
+	      .min_pulse = 1110-1,
+	      .max_pulse = 1915-1,
+	      .arming_pulse = 1100-1
 	  },
 	  .counts_per_degree = 2000.0f / 360.0f  // Adjust based on encoder
   };
@@ -160,9 +160,9 @@ int main(void)
 	  .driving = {
 	      .pwm_tim = &htim2,
 	      .pwm_channel = TIM_CHANNEL_3,
-	      .min_pulse = 1100,
-	      .max_pulse = 1900,
-	      .arming_pulse = 1099
+	      .min_pulse = 1110-1,
+	      .max_pulse = 1915-1,
+	      .arming_pulse = 1100-1
 	  },
 	  .counts_per_degree = 2000.0f / 360.0f  // Adjust based on encoder
   };
@@ -184,9 +184,9 @@ int main(void)
 	  .driving = {
 	      .pwm_tim = &htim2,
 	      .pwm_channel = TIM_CHANNEL_4,
-	      .min_pulse = 1100,
-	      .max_pulse = 1900,
-	      .arming_pulse = 1099
+	      .min_pulse = 1110-1,
+	      .max_pulse = 1915-1,
+	      .arming_pulse = 1100-1
 	  },
 	  .counts_per_degree = 2000.0f / 360.0f  // Adjust based on encoder
   };
@@ -200,11 +200,6 @@ int main(void)
   /* USER CODE BEGIN Init */
   JOYSTICK_Init(&huart3);  // Pass your UART handle
   JOYSTICK_SetTimeout(50); // Optional: Set custom timeout
-	// Initialization
-  SM_Init(&moduleRF);
-  SM_Init(&moduleLF);
-  SM_Init(&moduleRB);
-  SM_Init(&moduleLB);
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -224,10 +219,11 @@ int main(void)
   MX_TIM8_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  SM_CalibrateESC(&moduleRF.driving);
-  SM_CalibrateESC(&moduleLF.driving);
-  SM_CalibrateESC(&moduleRB.driving);
-  SM_CalibrateESC(&moduleLB.driving);
+  // Initialization
+  SM_Init(&moduleRF);
+  SM_Init(&moduleLF);
+  SM_Init(&moduleRB);
+  SM_Init(&moduleLB);
   /* USER CODE END 2 */
 
   /* Initialize led */
@@ -254,6 +250,16 @@ int main(void)
   /* -- Sample board code to switch on led ---- */
   BSP_LED_On(LED_GREEN);
 
+  __HAL_TIM_SET_COMPARE(&moduleRF.driving.pwm_tim, &moduleRF.driving.pwm_channel, &moduleRF.driving.min_pulse);
+  __HAL_TIM_SET_COMPARE(&moduleLF.driving.pwm_tim, &moduleLF.driving.pwm_channel, &moduleLF.driving.min_pulse);
+  __HAL_TIM_SET_COMPARE(&moduleRB.driving.pwm_tim, &moduleRB.driving.pwm_channel, &moduleRB.driving.min_pulse);
+  __HAL_TIM_SET_COMPARE(&moduleLB.driving.pwm_tim, &moduleLB.driving.pwm_channel, &moduleLB.driving.min_pulse);
+
+//  SM_CalibrateESC(&moduleRF.driving);
+//  SM_CalibrateESC(&moduleLF.driving);
+//  SM_CalibrateESC(&moduleRB.driving);
+//  SM_CalibrateESC(&moduleLB.driving);
+
   /* USER CODE END BSP */
 
   /* Infinite loop */
@@ -268,6 +274,16 @@ int main(void)
       BspButtonState = BUTTON_RELEASED;
       /* -- Sample board code to toggle led ---- */
       BSP_LED_Toggle(LED_GREEN);
+
+      SM_CalibrateESC(&moduleRF.driving);
+      SM_CalibrateESC(&moduleLF.driving);
+      SM_CalibrateESC(&moduleRB.driving);
+      SM_CalibrateESC(&moduleLB.driving);
+
+      __HAL_TIM_SET_COMPARE(&moduleRF.driving.pwm_tim, &moduleRF.driving.pwm_channel, &moduleRF.driving.min_pulse);
+      __HAL_TIM_SET_COMPARE(&moduleLF.driving.pwm_tim, &moduleLF.driving.pwm_channel, &moduleLF.driving.min_pulse);
+      __HAL_TIM_SET_COMPARE(&moduleRB.driving.pwm_tim, &moduleRB.driving.pwm_channel, &moduleRB.driving.min_pulse);
+      __HAL_TIM_SET_COMPARE(&moduleLB.driving.pwm_tim, &moduleLB.driving.pwm_channel, &moduleLB.driving.min_pulse);
 
       /* ..... Perform your action ..... */
     }
