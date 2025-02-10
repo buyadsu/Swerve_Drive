@@ -2,10 +2,10 @@
 ../Core/Src/swerve_module.c:36:16:clamp_pid_output	3
 ../Core/Src/swerve_module.c:42:6:SM_UpdateSteering	1
 ../Core/Src/swerve_module.c:52:6:SM_UpdateDriving	6
-../Core/Src/swerve_module.c:64:7:SM_GetCurrentAngle	2
-../Core/Src/swerve_module.c:79:6:SM_SteeringAtTarget	1
-../Core/Src/swerve_module.c:89:6:SM_CalibrateESC	16
-../Core/Src/swerve_module.c:107:14:normalize_angle_error	2
-../Core/Src/swerve_module.c:116:14:steering_pid_update	1
-../Core/Src/swerve_module.c:131:13:set_steering_pwm	6
-../Core/Src/swerve_module.c:144:13:constrain_pulse_width	3
+../Core/Src/swerve_module.c:79:7:SM_GetCurrentAngle	1
+../Core/Src/swerve_module.c:92:6:SM_SteeringAtTarget	1
+../Core/Src/swerve_module.c:102:6:SM_CalibrateESC	16
+../Core/Src/swerve_module.c:120:14:normalize_angle_error	2
+../Core/Src/swerve_module.c:129:14:steering_pid_update	1
+../Core/Src/swerve_module.c:144:13:set_steering_pwm	6
+../Core/Src/swerve_module.c:157:13:constrain_pulse_width	3

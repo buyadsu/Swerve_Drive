@@ -14,8 +14,8 @@
 // Private helper functions
 static float normalize_angle_error(float error);
 static float steering_pid_update(SteeringMotor* motor, float target, float current);
-static int32_t clamp_pid_output(float pid_output, int32_t min_pwm, int32_t max_pwm);
-static void set_steering_pwm(SteeringMotor* motor, int32_t pwm);
+static int16_t clamp_pid_output(float pid_output, int16_t min_pwm, int16_t max_pwm);
+static void set_steering_pwm(SteeringMotor* motor, int16_t pwm);
 static void constrain_pulse_width(uint16_t* pulse, uint16_t min, uint16_t max);
 
 void SM_Init(SwerveModule* module) {
@@ -33,10 +33,10 @@ void SM_Init(SwerveModule* module) {
     module->steering.integral = 0.0f;
 }
 
-static int32_t clamp_pid_output(float pid_output, int32_t min_pwm, int32_t max_pwm) {
+static int16_t clamp_pid_output(float pid_output, int16_t min_pwm, int16_t max_pwm) {
     if (pid_output < min_pwm) return min_pwm;
     if (pid_output > max_pwm) return max_pwm;
-    return (int32_t)pid_output;
+    return (int16_t)pid_output;
 }
 
 void SM_UpdateSteering(SwerveModule* module, float target_angle) {
@@ -61,15 +61,28 @@ void SM_UpdateDriving(SwerveModule* module, float speed) {
     __HAL_TIM_SET_COMPARE(module->driving.pwm_tim, module->driving.pwm_channel, target_speed);
 }
 
-float SM_GetCurrentAngle(SwerveModule* module) {
-    int32_t counts = (module->steering.encoder_tim->Instance == TIM5)     // Check if the encoder timer is 32-bit (e.g., TIM5)
-        ? (int32_t)(module->steering.encoder_tim->Instance->CNT)        // For 32-bit timer, use the full value
-        : (int16_t)(module->steering.encoder_tim->Instance->CNT);        // For 16-bit timers, cast the CNT register to a signed 16-bit integer.
-    // This converts counter values >32767 to negative numbers.
+//float SM_GetCurrentAngle(SwerveModule* module) {
+//    int32_t counts = (module->steering.encoder_tim->Instance == TIM5)     // Check if the encoder timer is 32-bit (e.g., TIM5)
+//        ? (int32_t)(module->steering.encoder_tim->Instance->CNT) && printf("32bit %d, 16bit %d", (int32_t)module->steering.encoder_tim->Instance->CNT, (int16_t)module->steering.encoder_tim->Instance->CNT)     // For 32-bit timer, use the full value
+//        : (int16_t)(module->steering.encoder_tim->Instance->CNT);        // For 16-bit timers, cast the CNT register to a signed 16-bit integer.
+//    // This converts counter values >32767 to negative numbers.
+//
+//	#ifdef DEBUG_PRINT
+//		printf("Encoder Counts: %ld\n", counts);
+//	#endif
+//
+//    // Convert the encoder counts to an angle.
+//    // (Assumes module->counts_per_degree is set appropriately.)
+//    return counts * module->counts_per_degree * 360.0f;
+//}
 
-	#ifdef DEBUG_PRINT
+float SM_GetCurrentAngle(SwerveModule* module) {
+    int32_t counts = (int16_t)(module->steering.encoder_tim->Instance->CNT);
+//    printf("32bit %ld, 16bit %d", (int32_t)module->steering.encoder_tim->Instance->CNT, (int16_t)module->steering.encoder_tim->Instance->CNT);     // For 32-bit timer, use the full value;
+
+//	#ifdef DEBUG_PRINT
 		printf("Encoder Counts: %ld\n", counts);
-	#endif
+//	#endif
 
     // Convert the encoder counts to an angle.
     // (Assumes module->counts_per_degree is set appropriately.)
@@ -128,9 +141,9 @@ static float steering_pid_update(SteeringMotor* motor, float target, float curre
 }
 
 
-static void set_steering_pwm(SteeringMotor* motor, int32_t pwm) {
+static void set_steering_pwm(SteeringMotor* motor, int16_t pwm) {
     bool direction = (pwm <= 0);
-    pwm = (int32_t)fminf(fabsf(pwm), __HAL_TIM_GET_AUTORELOAD(motor->pwm_tim));
+    pwm = (int16_t)fminf(fabsf(pwm), __HAL_TIM_GET_AUTORELOAD(motor->pwm_tim));
 
 	#ifdef DEBUG_PRINT
 		printf("Steering PSC: %lu, ARR: %lu\n", motor->pwm_tim->Instance->PSC, motor->pwm_tim->Instance->ARR);
@@ -138,7 +151,7 @@ static void set_steering_pwm(SteeringMotor* motor, int32_t pwm) {
 	#endif
 
     HAL_GPIO_WritePin(motor->dir_gpio_port, motor->dir_gpio_pin, direction);
-    __HAL_TIM_SET_COMPARE(motor->pwm_tim, motor->pwm_channel, (uint32_t)pwm);
+    __HAL_TIM_SET_COMPARE(motor->pwm_tim, motor->pwm_channel, (uint16_t)pwm);
 }
 
 static void constrain_pulse_width(uint16_t* pulse, uint16_t min, uint16_t max) {

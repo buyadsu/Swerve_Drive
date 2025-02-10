@@ -34,7 +34,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DEBUG_PRINT
-//#define TEST
+#define TEST
 
 // Robot dimensions (adjust according to actual measurements)
 #define ROBOT_LENGTH 0.5f // Distance from front to back wheels (meters)
@@ -104,7 +104,7 @@ int main(void)
 	      .pwm_tim = &htim1,
 	      .pwm_channel = TIM_CHANNEL_4,
           .encoder_tim = &htim3,
-	      .Kp = 1.0f,
+	      .Kp = 2.5f,
 	      .Ki = 0.1f,
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
@@ -128,7 +128,7 @@ int main(void)
 	      .pwm_tim = &htim1,
 	      .pwm_channel = TIM_CHANNEL_3,
           .encoder_tim = &htim4,
-	      .Kp = 1.0f,
+	      .Kp = 2.5f,
 	      .Ki = 0.1f,
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
@@ -152,9 +152,9 @@ int main(void)
 	      .pwm_tim = &htim1,
 	      .pwm_channel = TIM_CHANNEL_2,
           .encoder_tim = &htim5,
-		  .Kp = 2.0f,  // Increase proportional gain
+		  .Kp = 2.5f,  // Increase proportional gain
 		  .Ki = 0.05f, // Reduce integral to prevent windup
-		  .Kd = 0.02f,
+		  .Kd = 0.05f,
 	      .integral_limit = 500.0f,
 	      .dt = 0.1f,
 		  .max_pwm = 199
@@ -176,7 +176,7 @@ int main(void)
 	      .pwm_tim = &htim1,
 	      .pwm_channel = TIM_CHANNEL_1,
           .encoder_tim = &htim8,
-	      .Kp = 1.0f,
+	      .Kp = 2.5f,
 	      .Ki = 0.1f,
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
@@ -332,7 +332,7 @@ int main(void)
 		float target_angle = 45.0f;  // From kinematics
 		float target_speed = 0;
 
-		printf("RB Encoder: %ld\n", (int32_t)htim5.Instance->CNT);
+//		printf("RB Encoder: %ld\n", (int32_t)htim5.Instance->CNT); //debug
 
 		SM_UpdateSteering(&moduleRF, target_angle);
 		SM_UpdateDriving(&moduleRF, target_speed);
@@ -772,11 +772,11 @@ static void MX_TIM5_Init(void)
   sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 0;
+  sConfig.IC1Filter = 15;
   sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 0;
+  sConfig.IC2Filter = 15;
   if (HAL_TIM_Encoder_Init(&htim5, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -822,11 +822,11 @@ static void MX_TIM8_Init(void)
   sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 0;
+  sConfig.IC1Filter = 10;
   sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 0;
+  sConfig.IC2Filter = 10;
   if (HAL_TIM_Encoder_Init(&htim8, &sConfig) != HAL_OK)
   {
     Error_Handler();
