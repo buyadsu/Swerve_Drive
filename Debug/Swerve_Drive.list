@@ -3242,8 +3242,8 @@ static void MX_TIM8_Init(void)
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
  8001d66:	2300      	movs	r3, #0
  8001d68:	61bb      	str	r3, [r7, #24]
-  sConfig.IC1Filter = 10;
- 8001d6a:	230a      	movs	r3, #10
+  sConfig.IC1Filter = 15;
+ 8001d6a:	230f      	movs	r3, #15
  8001d6c:	61fb      	str	r3, [r7, #28]
   sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
  8001d6e:	2300      	movs	r3, #0
@@ -3254,8 +3254,8 @@ static void MX_TIM8_Init(void)
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
  8001d76:	2300      	movs	r3, #0
  8001d78:	62bb      	str	r3, [r7, #40]	@ 0x28
-  sConfig.IC2Filter = 10;
- 8001d7a:	230a      	movs	r3, #10
+  sConfig.IC2Filter = 15;
+ 8001d7a:	230f      	movs	r3, #15
  8001d7c:	62fb      	str	r3, [r7, #44]	@ 0x2c
   if (HAL_TIM_Encoder_Init(&htim8, &sConfig) != HAL_OK)
  8001d7e:	f107 030c 	add.w	r3, r7, #12
