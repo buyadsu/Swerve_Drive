@@ -63,7 +63,7 @@ TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim8;
 TIM_HandleTypeDef htim20;
 
-UART_HandleTypeDef huart3;
+UART_HandleTypeDef huart4;
 
 /* USER CODE BEGIN PV */
 float xSpeed = 0.0f, ySpeed = 0.0f, rot = 0.0f;
@@ -78,8 +78,8 @@ static void MX_TIM2_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM8_Init(void);
-static void MX_USART3_UART_Init(void);
 static void MX_TIM20_Init(void);
+static void MX_UART4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -115,7 +115,7 @@ int main(void)
 	      .pwm_tim = &htim2,
 	      .pwm_channel = TIM_CHANNEL_1,
 	      .min_pulse = 1110-1,
-	      .max_pulse = 1915-1,
+	      .max_pulse = 1400-1,
 	      .arming_pulse = 1100-1
 	  },
 	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
@@ -139,7 +139,7 @@ int main(void)
 	      .pwm_tim = &htim2,
 	      .pwm_channel = TIM_CHANNEL_2,
 	      .min_pulse = 1110-1,
-	      .max_pulse = 1915-1,
+	      .max_pulse = 1400-1,
 	      .arming_pulse = 1100-1
 	  },
 	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
@@ -163,7 +163,7 @@ int main(void)
 	      .pwm_tim = &htim2,
 	      .pwm_channel = TIM_CHANNEL_3,
 	      .min_pulse = 1110-1,
-	      .max_pulse = 1915-1,
+	      .max_pulse = 1400-1,
 	      .arming_pulse = 1100-1
 	  },
 	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
@@ -187,7 +187,7 @@ int main(void)
 	      .pwm_tim = &htim2,
 	      .pwm_channel = TIM_CHANNEL_4,
 	      .min_pulse = 1110-1,
-	      .max_pulse = 1915-1,
+	      .max_pulse = 1400-1,
 	      .arming_pulse = 1100-1
 	  },
 	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
@@ -200,8 +200,8 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  JOYSTICK_Init(&huart3);  // Pass your UART handle
-  JOYSTICK_SetTimeout(5); // Optional: Set custom timeout
+  JOYSTICK_Init(&huart4);  // Pass your UART handle
+  JOYSTICK_SetTimeout(100); // Optional: Set custom timeout
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -218,8 +218,8 @@ int main(void)
   MX_TIM4_Init();
   MX_TIM3_Init();
   MX_TIM8_Init();
-  MX_USART3_UART_Init();
   MX_TIM20_Init();
+  MX_UART4_Init();
   /* USER CODE BEGIN 2 */
   // Initialization
   SM_Init(&moduleRF);
@@ -301,40 +301,47 @@ int main(void)
     	JoystickData data = JOYSTICK_GetData();
     	lastJoystickUpdate = HAL_GetTick();  // Reset timeout timer
 
-        // Add data validation
-        if(data.axisX < -512 || data.axisX > 511 ||
-           data.axisY < -512 || data.axisY > 511) {
-            printf("Invalid joystick data!\r\n");
-            continue;
-        }
+    	printf("debug here 0\n");
+
+        xSpeed = (float)data.axisX / -512.0f;
+        ySpeed = (float)data.axisY / -512.0f;
+        rot = (float)data.axisRX / -512.0f;
 
 		#ifdef DEBUG_PRINT
-				printf("X: %ld, Y: %ld, RX: %ld\n", data.axisX, data.axisY, data.axisRX);
+			printf("X: %ld, Y: %ld, RX: %ld\n", data.axisX, data.axisY, data.axisRX);
 		#endif
 
-        xSpeed = (float)data.axisX / 512.0f;
-        ySpeed = (float)data.axisY / -512.0f;
-        rot = (float)data.axisRX / 512.0f;
+        // Add data validation
+        if(xSpeed < -512 || xSpeed > 511 ||
+           ySpeed < -512 || ySpeed > 511) {
 
-        // Apply deadzone
-        if (fabsf(xSpeed) < DEADZONE) xSpeed = 0.0f;
-        if (fabsf(ySpeed) < DEADZONE) ySpeed = 0.0f;
-        if (fabsf(rot) < DEADZONE) rot = 0.0f;
+        	xSpeed = 0.0f;
+        	ySpeed = 0.0f;
+        	rot = 0.0f;
+            printf("Invalid joystick data!\r\n");
+        }
+
+//        // Apply deadzone
+//        if (fabsf(xSpeed) < DEADZONE) xSpeed = 0.0f;
+//        if (fabsf(ySpeed) < DEADZONE) ySpeed = 0.0f;
+//        if (fabsf(rot) < DEADZONE) rot = 0.0f;
 
         // Smooth input changes to prevent jerky motion
 //        xSpeed += fminf(fmaxf(newXSpeed - xSpeed, -MAX_CHANGE_RATE), MAX_CHANGE_RATE);
 //        ySpeed += fminf(fmaxf(newYSpeed - ySpeed, -MAX_CHANGE_RATE), MAX_CHANGE_RATE);
 //        rot += fminf(fmaxf(newRot - rot, -MAX_CHANGE_RATE), MAX_CHANGE_RATE);
     }
+    HAL_Delay(10);
 
-//    // If no joystick data received for TIMEOUT_MS, stop the motors
-//    if (HAL_GetTick() - lastJoystickUpdate > TIMEOUT_MS) {
-//        xSpeed = 0.0f;
-//        ySpeed = 0.0f;
-//        rot = 0.0f;
-//
-//        lastJoystickUpdate = HAL_GetTick();
-//    }
+    // If no joystick data received for TIMEOUT_MS, stop the motors
+    if (HAL_GetTick() - lastJoystickUpdate > TIMEOUT_MS) {
+        xSpeed = 0.0f;
+        ySpeed = 0.0f;
+        rot = 0.0f;
+
+        printf("Joystick connection lost.\n");
+        lastJoystickUpdate = HAL_GetTick();
+    }
 
     printf("xSpeed: %f, ySpeed: %f, Rot: %f\n", xSpeed, ySpeed, rot);
 
@@ -385,65 +392,68 @@ int main(void)
 		HAL_Delay(10);
 #else
 		// Kinematic calculations for each module
-	    // Front Right (RF)
-	    float rf_x = xSpeed - (rot * (ROBOT_LENGTH / 2.0f));
-	    float rf_y = ySpeed + (rot * (ROBOT_WIDTH / 2.0f));
-	    float rf_angle = atan2f(rf_y, rf_x) * (180.0f / (float)M_PI);
-	    float rf_speed = sqrtf(rf_x * rf_x + rf_y * rf_y);
+		// Front Right (RF)
+		float rf_x = xSpeed - (rot * (ROBOT_WIDTH / 2.0f));
+		float rf_y = ySpeed + (rot * (ROBOT_LENGTH / 2.0f));
+		float rf_angle = atan2f(rf_y, rf_x) * (180.0f / (float)M_PI);
+		float rf_speed = sqrtf(rf_x * rf_x + rf_y * rf_y);
 
-	    // Front Left (LF)
-	    float lf_x = xSpeed - (rot * (ROBOT_LENGTH / 2.0f));
-	    float lf_y = ySpeed - (rot * (ROBOT_WIDTH / 2.0f));
-	    float lf_angle = atan2f(lf_y, lf_x) * (180.0f / (float)M_PI);
-	    float lf_speed = sqrtf(lf_x * lf_x + lf_y * lf_y);
+		// Front Left (LF)
+		float lf_x = xSpeed + (rot * (ROBOT_WIDTH / 2.0f));
+		float lf_y = ySpeed + (rot * (ROBOT_LENGTH / 2.0f));
+		float lf_angle = atan2f(lf_y, lf_x) * (180.0f / (float)M_PI);
+		float lf_speed = sqrtf(lf_x * lf_x + lf_y * lf_y);
 
-	    // Rear Right (RB)
-	    float rb_x = xSpeed + (rot * (ROBOT_LENGTH / 2.0f));
-	    float rb_y = ySpeed + (rot * (ROBOT_WIDTH / 2.0f));
-	    float rb_angle = atan2f(rb_y, rb_x) * (180.0f / (float)M_PI);
-	    float rb_speed = sqrtf(rb_x * rb_x + rb_y * rb_y);
+		// Rear Right (RB)
+		float rb_x = xSpeed - (rot * (ROBOT_WIDTH / 2.0f));
+		float rb_y = ySpeed - (rot * (ROBOT_LENGTH / 2.0f));
+		float rb_angle = atan2f(rb_y, rb_x) * (180.0f / (float)M_PI);
+		float rb_speed = sqrtf(rb_x * rb_x + rb_y * rb_y);
 
-	    // Rear Left (LB)
-	    float lb_x = xSpeed + (rot * (ROBOT_LENGTH / 2.0f));
-	    float lb_y = ySpeed - (rot * (ROBOT_WIDTH / 2.0f));
-	    float lb_angle = atan2f(lb_y, lb_x) * (180.0f / (float)M_PI);
-	    float lb_speed = sqrtf(lb_x * lb_x + lb_y * lb_y);
+		// Rear Left (LB)
+		float lb_x = xSpeed + (rot * (ROBOT_WIDTH / 2.0f));
+		float lb_y = ySpeed - (rot * (ROBOT_LENGTH / 2.0f));
+		float lb_angle = atan2f(lb_y, lb_x) * (180.0f / (float)M_PI);
+		float lb_speed = sqrtf(lb_x * lb_x + lb_y * lb_y);
 
-	    // Normalize speeds if any exceeds 1.0
-	    float max_speed = fmaxf(fmaxf(rf_speed, lf_speed), fmaxf(rb_speed, lb_speed));
-	    if (max_speed > 1.0f && max_speed > 0.0f) {
-	    	rf_speed /= max_speed;
-	        lf_speed /= max_speed;
-	        rb_speed /= max_speed;
-	        lb_speed /= max_speed;
-	    }
+		// Normalize speeds if any exceeds 1.0
+		float max_speed = fmaxf(fmaxf(rf_speed, lf_speed), fmaxf(rb_speed, lb_speed));
+		if (max_speed > 1.0f) {
+		    rf_speed /= max_speed;
+		    lf_speed /= max_speed;
+		    rb_speed /= max_speed;
+		    lb_speed /= max_speed;
+		}
 
-//	    rf_angle = fmodf((rf_angle + 360.0f), 360.0f);
-//	    lf_angle = fmodf((lf_angle + 360.0f), 360.0f);
-//	    rb_angle = fmodf((rb_angle + 360.0f), 360.0f);
-//	    lb_angle = fmodf((lb_angle + 360.0f), 360.0f);
+		// Ensure angles are within 0-360 degrees
+		rf_angle = fmodf(rf_angle + 360.0f, 360.0f);
+		lf_angle = fmodf(lf_angle + 360.0f, 360.0f);
+		rb_angle = fmodf(rb_angle + 360.0f, 360.0f);
+		lb_angle = fmodf(lb_angle + 360.0f, 360.0f);
 
-	    // Update modules
-	    SM_UpdateSteering(&moduleRF, rf_angle);
-	    SM_UpdateDriving(&moduleRF, rf_speed);
+		// Update modules
+		SM_UpdateSteering(&moduleRF, rf_angle);
+		SM_UpdateDriving(&moduleRF, rf_speed);
 
-	    SM_UpdateSteering(&moduleLF, lf_angle);
-	    SM_UpdateDriving(&moduleLF, lf_speed);
+		SM_UpdateSteering(&moduleLF, lf_angle);
+		SM_UpdateDriving(&moduleLF, lf_speed);
 
-	    SM_UpdateSteering(&moduleRB, rb_angle);
-	    SM_UpdateDriving(&moduleRB, rb_speed);
+		SM_UpdateSteering(&moduleRB, rb_angle);
+		SM_UpdateDriving(&moduleRB, rb_speed);
 
-	    SM_UpdateSteering(&moduleLB, lb_angle);
-	    SM_UpdateDriving(&moduleLB, lb_speed);
+		SM_UpdateSteering(&moduleLB, lb_angle);
+		SM_UpdateDriving(&moduleLB, lb_speed);
 
 #ifdef DEBUG_PRINT
 	    // Debug prints for each wheel's speed and angle
-	    printf("\n==== Wheel Data ====\n");
-	    printf("RF -> Angle: %.2f°, Speed: %.2f\n", rf_angle, rf_speed);
-	    printf("LF -> Angle: %.2f°, Speed: %.2f\n", lf_angle, lf_speed);
-	    printf("RB -> Angle: %.2f°, Speed: %.2f\n", rb_angle, rb_speed);
-	    printf("LB -> Angle: %.2f°, Speed: %.2f\n", lb_angle, lb_speed);
+//	    printf("\n==== Wheel Data ====\n");
+//	    printf("RF -> Angle: %.2f°, Speed: %.2f\n", rf_angle, rf_speed);
+//	    printf("LF -> Angle: %.2f°, Speed: %.2f\n", lf_angle, lf_speed);
+//	    printf("RB -> Angle: %.2f°, Speed: %.2f\n", rb_angle, rb_speed);
+//	    printf("LB -> Angle: %.2f°, Speed: %.2f\n", lb_angle, lb_speed);
 #endif // DEBUG_PRINT
+
+//	    HAL_Delay(10);
 
 #endif // TEST
 
@@ -842,50 +852,50 @@ static void MX_TIM20_Init(void)
 }
 
 /**
-  * @brief USART3 Initialization Function
+  * @brief UART4 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_USART3_UART_Init(void)
+static void MX_UART4_Init(void)
 {
 
-  /* USER CODE BEGIN USART3_Init 0 */
+  /* USER CODE BEGIN UART4_Init 0 */
 
-  /* USER CODE END USART3_Init 0 */
+  /* USER CODE END UART4_Init 0 */
 
-  /* USER CODE BEGIN USART3_Init 1 */
+  /* USER CODE BEGIN UART4_Init 1 */
 
-  /* USER CODE END USART3_Init 1 */
-  huart3.Instance = USART3;
-  huart3.Init.BaudRate = 500000;
-  huart3.Init.WordLength = UART_WORDLENGTH_8B;
-  huart3.Init.StopBits = UART_STOPBITS_1;
-  huart3.Init.Parity = UART_PARITY_NONE;
-  huart3.Init.Mode = UART_MODE_TX_RX;
-  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
-  huart3.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  huart3.Init.ClockPrescaler = UART_PRESCALER_DIV1;
-  huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-  if (HAL_UART_Init(&huart3) != HAL_OK)
+  /* USER CODE END UART4_Init 1 */
+  huart4.Instance = UART4;
+  huart4.Init.BaudRate = 500000;
+  huart4.Init.WordLength = UART_WORDLENGTH_8B;
+  huart4.Init.StopBits = UART_STOPBITS_1;
+  huart4.Init.Parity = UART_PARITY_NONE;
+  huart4.Init.Mode = UART_MODE_TX_RX;
+  huart4.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart4.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart4.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart4.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart4.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart4) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_UARTEx_SetTxFifoThreshold(&huart3, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart4, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_UARTEx_SetRxFifoThreshold(&huart3, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart4, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
   {
     Error_Handler();
   }
-  if (HAL_UARTEx_DisableFifoMode(&huart3) != HAL_OK)
+  if (HAL_UARTEx_DisableFifoMode(&huart4) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN USART3_Init 2 */
+  /* USER CODE BEGIN UART4_Init 2 */
 
-  /* USER CODE END USART3_Init 2 */
+  /* USER CODE END UART4_Init 2 */
 
 }
 

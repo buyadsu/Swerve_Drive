@@ -80,9 +80,9 @@ float SM_GetCurrentAngle(SwerveModule* module) {
     int32_t counts = (int16_t)(module->steering.encoder_tim->Instance->CNT);
 //    printf("32bit %ld, 16bit %d", (int32_t)module->steering.encoder_tim->Instance->CNT, (int16_t)module->steering.encoder_tim->Instance->CNT);     // For 32-bit timer, use the full value;
 
-//	#ifdef DEBUG_PRINT
+	#ifdef DEBUG_PRINT
 		printf("Encoder Counts: %ld\n", counts);
-//	#endif
+	#endif
 
     // Convert the encoder counts to an angle.
     // (Assumes module->counts_per_degree is set appropriately.)

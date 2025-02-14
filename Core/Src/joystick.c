@@ -5,13 +5,12 @@
  *      Author: buya_-
  */
 
-
 #include "joystick.h"
 
 // Private variables
 static UART_HandleTypeDef *_huart;
-static uint32_t _timeout = 100;  // Default 100ms timeout
-static char _data_buffer[64];
+static uint32_t _timeout = 2;  // Default 100ms timeout
+static char _data_buffer[256];
 static uint16_t _buf_index = 0;
 static JoystickData _current_data = {0};
 static bool _new_data_available = false;
@@ -37,17 +36,12 @@ void JOYSTICK_Process(void) {
                 _data_buffer[_buf_index] = '\0';
 
                 // Temporary variables for parsing
-//                uint16_t dpad, buttons, misc;
-//                int32_t ax, ay, rax, ray, brake, throttle;
-
-                  int32_t ax, ay, rax;
-
-//                sscanf(_data_buffer,
-//                       "dpad: 0x%04hx, buttons: 0x%04hx, axis L: %ld, %ld, axis R: %ld, %ld, brake: %ld, throttle: %ld, misc: 0x%04hx",
-//                       &dpad, &buttons, &ax, &ay, &rax, &ray, &brake, &throttle, &misc);
+                uint16_t dpad, buttons, misc;
+                int32_t ax, ay, rax, ray, brake, throttle;
 
                 sscanf(_data_buffer,
-                       "axis L: %ld, %ld, axis R: %ld", &ax, &ay, &rax);
+                       "dpad: 0x%04hx, buttons: 0x%04hx, axis L: %ld, %ld, axis R: %ld, %ld, brake: %ld, throttle: %ld, misc: 0x%04hx",
+                       &dpad, &buttons, &ax, &ay, &rax, &ray, &brake, &throttle, &misc);
 
                 // Update data structure
                 _current_data.axisX = ax;
