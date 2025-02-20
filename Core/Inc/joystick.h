@@ -16,6 +16,7 @@ typedef struct {
     int32_t axisX;
     int32_t axisY;
     int32_t axisRX;
+    uint16_t buttons;
     bool new_data;
 } JoystickData;
 

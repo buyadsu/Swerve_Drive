@@ -2,10 +2,10 @@
 ../Core/Src/swerve_module.c:36:16:clamp_pid_output	16	static
 ../Core/Src/swerve_module.c:42:6:SM_UpdateSteering	24	static
 ../Core/Src/swerve_module.c:52:6:SM_UpdateDriving	24	static
-../Core/Src/swerve_module.c:79:7:SM_GetCurrentAngle	24	static
-../Core/Src/swerve_module.c:92:6:SM_SteeringAtTarget	48	static
-../Core/Src/swerve_module.c:102:6:SM_CalibrateESC	16	static
-../Core/Src/swerve_module.c:120:14:normalize_angle_error	16	static
-../Core/Src/swerve_module.c:129:14:steering_pid_update	32	static
-../Core/Src/swerve_module.c:144:13:set_steering_pwm	24	static
-../Core/Src/swerve_module.c:157:13:constrain_pulse_width	16	static
+../Core/Src/swerve_module.c:64:7:SM_GetCurrentAngle	24	static
+../Core/Src/swerve_module.c:76:6:SM_SteeringAtTarget	32	static
+../Core/Src/swerve_module.c:86:6:SM_CalibrateESC	16	static
+../Core/Src/swerve_module.c:104:14:normalize_angle_error	16	static
+../Core/Src/swerve_module.c:113:14:steering_pid_update	32	static
+../Core/Src/swerve_module.c:128:13:set_steering_pwm	24	static
+../Core/Src/swerve_module.c:141:13:constrain_pulse_width	16	static

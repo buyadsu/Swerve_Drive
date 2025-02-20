@@ -47,6 +47,7 @@ void JOYSTICK_Process(void) {
                 _current_data.axisX = ax;
                 _current_data.axisY = ay;
                 _current_data.axisRX = rax;
+                _current_data.buttons = buttons;
                 _new_data_available = true;
 
                 // Reset buffer

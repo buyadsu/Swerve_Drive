@@ -61,24 +61,8 @@ void SM_UpdateDriving(SwerveModule* module, float speed) {
     __HAL_TIM_SET_COMPARE(module->driving.pwm_tim, module->driving.pwm_channel, target_speed);
 }
 
-//float SM_GetCurrentAngle(SwerveModule* module) {
-//    int32_t counts = (module->steering.encoder_tim->Instance == TIM5)     // Check if the encoder timer is 32-bit (e.g., TIM5)
-//        ? (int32_t)(module->steering.encoder_tim->Instance->CNT) && printf("32bit %d, 16bit %d", (int32_t)module->steering.encoder_tim->Instance->CNT, (int16_t)module->steering.encoder_tim->Instance->CNT)     // For 32-bit timer, use the full value
-//        : (int16_t)(module->steering.encoder_tim->Instance->CNT);        // For 16-bit timers, cast the CNT register to a signed 16-bit integer.
-//    // This converts counter values >32767 to negative numbers.
-//
-//	#ifdef DEBUG_PRINT
-//		printf("Encoder Counts: %ld\n", counts);
-//	#endif
-//
-//    // Convert the encoder counts to an angle.
-//    // (Assumes module->counts_per_degree is set appropriately.)
-//    return counts * module->counts_per_degree * 360.0f;
-//}
-
 float SM_GetCurrentAngle(SwerveModule* module) {
     int32_t counts = (int16_t)(module->steering.encoder_tim->Instance->CNT);
-//    printf("32bit %ld, 16bit %d", (int32_t)module->steering.encoder_tim->Instance->CNT, (int16_t)module->steering.encoder_tim->Instance->CNT);     // For 32-bit timer, use the full value;
 
 	#ifdef DEBUG_PRINT
 		printf("Encoder Counts: %ld\n", counts);
@@ -92,9 +76,9 @@ float SM_GetCurrentAngle(SwerveModule* module) {
 bool SM_SteeringAtTarget(SwerveModule* module, float target_angle, float tolerance) {
     float current = SM_GetCurrentAngle(module);
 
-//#ifdef DEBUG_PRINT    // For debugging, you might print the pulse:
-    printf("Current angle: %f Target angle: %f\n", current, target_angle);
-//#endif
+	#ifdef DEBUG_PRINT    // For debugging, you might print the pulse:
+		printf("Current angle: %f Target angle: %f\n", current, target_angle);
+	#endif
 
     return fabsf(current - target_angle) <= tolerance;
 }
