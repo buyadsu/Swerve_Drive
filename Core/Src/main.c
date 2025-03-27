@@ -22,18 +22,14 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "joystick.h"
+#include "swerve_drive.h"
 #include "swerve_module.h"
 #include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-enum ModuleIndices {
-    RF = 0,
-    LF = 1,
-    RB = 2,
-    LB = 3
-};
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -42,15 +38,13 @@ enum ModuleIndices {
 //#define TEST
 
 // Robot dimensions (adjust according to actual measurements)
-#define ROBOT_LENGTH 0.5f // Distance from front to back wheels (meters)
-#define ROBOT_WIDTH 0.5f  // Distance from left to right wheels (meters)
 #define ROBOT_STEERING_GEAR_RATIO 2.0f // Gear ratio of steering motors
 #define STEERING_ENCODER_RESOLUTION 1000.0 // Encoder resolution
-#define STEERING_DEADZONE 2.0f  // Degrees
-#define SPEED_DEADZONE 0.05f
-#define DEADZONE 0.1f     // Deadzone to ignore small joystick inputs
-#define MAX_CHANGE_RATE 0.05f  // Limits the change per loop iteration
 #define TIMEOUT_MS 500         // Timeout for joystick disconnect detection
+
+// Joystick smoothing parameters
+#define JOYSTICK_DEADBAND 0.05f    // 5% deadband for joystick inputs
+#define JOYSTICK_SMOOTHING 0.15f   // Smoothing factor (0.0 to 1.0)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -78,6 +72,7 @@ UART_HandleTypeDef huart1;  // For joystick
 
 /* USER CODE BEGIN PV */
 float xSpeed = 0.0f, ySpeed = 0.0f, rot = 0.0f;
+float target_xSpeed = 0.0f, target_ySpeed = 0.0f, target_rot = 0.0f;
 uint32_t lastJoystickUpdate = 0;  // Store the last time we received valid joystick data
 
 bool lastButtonState;
@@ -108,97 +103,6 @@ static void MX_TIM17_Init(void);
 static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
 
-//// Modified optimize_angle function with rotation fixes
-//static void optimize_angle(float* angle, float* speed, int module_idx) {
-//    const float original_angle = *angle;
-//    *speed = fabsf(*speed);  // Maintain positive speed
-//
-//    // Normalize to 0-360 first
-//    *angle = fmodf(*angle + 360.0f, 360.0f);
-//
-//    // Calculate shortest path considering rotation requirements
-//    float angle_diff = *angle - prev_angles[module_idx];
-//    if (angle_diff > 180.0f) {
-//        *angle -= 360.0f;
-//    } else if (angle_diff < -180.0f) {
-//        *angle += 360.0f;
-//    }
-//
-//    // Force specific angles during rotation
-//    const float rotation_angles[4][2] = {
-//        {135.0f, -135.0f},  // RF
-//        {45.0f,  -45.0f},   // LF
-//        {-135.0f, 135.0f},  // RB
-//        {-45.0f,  45.0f}    // LB
-//    };
-//
-//    if (fabsf(rot) > 0.8f && fabsf(xSpeed) < 0.1f && fabsf(ySpeed) < 0.1f) {
-//        // Pure rotation mode
-//        float target = (rot > 0) ? rotation_angles[module_idx][0] : rotation_angles[module_idx][1];
-//        if (fabsf(*angle - target) < STEERING_DEADZONE * 2.0f) {
-//            *angle = target;
-//        }
-//    }
-//    else {
-//        // Normal movement optimization
-//        if (fabsf(original_angle - 180.0f) < STEERING_DEADZONE) {
-//            *angle = 180.0f;
-//        }
-//        else if (*angle > 90.0f && *angle <= 270.0f) {
-//            *angle -= 180.0f;
-//        }
-//        else if (*angle < -90.0f) {
-//            *angle += 180.0f;
-//        }
-//    }
-//
-//    // Update previous angle
-//    prev_angles[module_idx] = *angle;
-//
-//    // Speed deadzone handling
-//    if (*speed < SPEED_DEADZONE) {
-//        *angle = 0.0f;
-//        *speed = 0.0f;
-//        prev_angles[module_idx] = 0.0f;
-//    }
-//}
-
-// Optimized angle calculation with direction preservation
-static void optimize_angle(float* angle, float* speed, int module_idx) {
-    // Preserve original vector direction
-    float original_angle = *angle;
-    *speed = fabsf(*speed);
-
-    // Normalize to 0-360
-    *angle = fmodf(*angle + 360.0f, 360.0f);
-
-    // Calculate shortest path from previous angle
-    float angle_diff = *angle - prev_angles[module_idx];
-    if (angle_diff > 180.0f) {
-        *angle -= 360.0f;
-    } else if (angle_diff < -180.0f) {
-        *angle += 360.0f;
-    }
-
-    // For pure backward motion (ySpeed = -1), maintain 180° orientation
-    if (fabsf(original_angle - 180.0f) < STEERING_DEADZONE) {
-        *angle = 180.0f;
-    }
-
-//    if (fabsf(original_angle - 135.0f) < STEERING_DEADZONE) {
-//        *angle = 135.0f;
-//    }
-
-    // Update previous angle
-    prev_angles[module_idx] = *angle;
-
-    // Apply steering deadzone
-    if (*speed < SPEED_DEADZONE) {
-        *angle = 0.0f;  // Return to neutral when stopped
-        *speed = 0.0f;
-        prev_angles[module_idx] = 0.0f;
-    }
-}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -347,19 +251,17 @@ int main(void)
   MX_TIM17_Init();
   MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
-  // Initialization
+  // Initialize ODrive UART
+  ODrive_UART_Init();
+  SwerveDrive_Init();
+  // Initialize joystick
+  Joystick_Init();
+
+  // Initialize swerve modules
   SM_Init(&moduleRF);
   SM_Init(&moduleLF);
   SM_Init(&moduleRB);
   SM_Init(&moduleLB);
-
-  // Initialize ODrive UART
-  ODrive_UART_Init(&huart4);
-  ODrive_UART_Init(&huart5);
-
-  // Initialize joystick on UART1
-  JOYSTICK_Init(&huart1);
-  JOYSTICK_SetTimeout(100);
   /* USER CODE END 2 */
 
   /* Initialize led */
@@ -420,38 +322,53 @@ int main(void)
     JOYSTICK_Process();
 
     if (JOYSTICK_NewDataAvailable()) {
-    	JoystickData data = JOYSTICK_GetData();
-    	lastJoystickUpdate = HAL_GetTick();  // Reset timeout timer
+        JoystickData data = JOYSTICK_GetData();
+        lastJoystickUpdate = HAL_GetTick();  // Reset timeout timer
 
-        xSpeed = (float)data.axisX / 512.0f;
-        ySpeed = (float)data.axisY / -512.0f;
-        rot = (float)data.axisRX / -512.0f;
+        // Convert raw joystick values to normalized values (-1 to 1)
+        float raw_x = (float)data.axisX / 512.0f;
+        float raw_y = (float)data.axisY / -512.0f;
+        float raw_rot = (float)data.axisRX / -512.0f;
 
-		#ifdef DEBUG_PRINT
-			printf("X: %ld, Y: %ld, RX: %ld\n", data.axisX, data.axisY, data.axisRX);
-		#endif
+        // Apply deadband
+        if (fabsf(raw_x) < JOYSTICK_DEADBAND) raw_x = 0.0f;
+        if (fabsf(raw_y) < JOYSTICK_DEADBAND) raw_y = 0.0f;
+        if (fabsf(raw_rot) < JOYSTICK_DEADBAND) raw_rot = 0.0f;
+
+        // Apply smoothing
+        target_xSpeed = target_xSpeed + (raw_x - target_xSpeed) * JOYSTICK_SMOOTHING;
+        target_ySpeed = target_ySpeed + (raw_y - target_ySpeed) * JOYSTICK_SMOOTHING;
+        target_rot = target_rot + (raw_rot - target_rot) * JOYSTICK_SMOOTHING;
+
+        // Limit rate of change
+        float x_diff = target_xSpeed - xSpeed;
+        float y_diff = target_ySpeed - ySpeed;
+        float rot_diff = target_rot - rot;
+
+        xSpeed += fmaxf(fminf(x_diff, MAX_CHANGE_RATE), -MAX_CHANGE_RATE);
+        ySpeed += fmaxf(fminf(y_diff, MAX_CHANGE_RATE), -MAX_CHANGE_RATE);
+        rot += fmaxf(fminf(rot_diff, MAX_CHANGE_RATE), -MAX_CHANGE_RATE);
+
+        #ifdef DEBUG_PRINT
+            printf("Raw: X=%.2f Y=%.2f R=%.2f\n", raw_x, raw_y, raw_rot);
+            printf("Target: X=%.2f Y=%.2f R=%.2f\n", target_xSpeed, target_ySpeed, target_rot);
+            printf("Current: X=%.2f Y=%.2f R=%.2f\n", xSpeed, ySpeed, rot);
+        #endif
 
         // Add data validation
-        if(xSpeed < -512 || xSpeed > 511 ||
-           ySpeed < -512 || ySpeed > 511) {
-
-        	xSpeed = 0.0f;
-        	ySpeed = 0.0f;
-        	rot = 0.0f;
+        if(xSpeed < -1.0f || xSpeed > 1.0f ||
+           ySpeed < -1.0f || ySpeed > 1.0f ||
+           rot < -1.0f || rot > 1.0f) {
+            xSpeed = 0.0f;
+            ySpeed = 0.0f;
+            rot = 0.0f;
+            target_xSpeed = 0.0f;
+            target_ySpeed = 0.0f;
+            target_rot = 0.0f;
             printf("Invalid joystick data!\r\n");
         }
 
         printf("Buttons (Hex): 0x%04X\n", data.buttons);
-//        // Apply deadzone
-//        if (fabsf(xSpeed) < DEADZONE) xSpeed = 0.0f;
-//        if (fabsf(ySpeed) < DEADZONE) ySpeed = 0.0f;
-//        if (fabsf(rot) < DEADZONE) rot = 0.0f;
-
-        // Smooth input changes to prevent jerky motion
-//        xSpeed += fminf(fmaxf(newXSpeed - xSpeed, -MAX_CHANGE_RATE), MAX_CHANGE_RATE);
-//        ySpeed += fminf(fmaxf(newYSpeed - ySpeed, -MAX_CHANGE_RATE), MAX_CHANGE_RATE);
-//        rot += fminf(fmaxf(newRot - rot, -MAX_CHANGE_RATE), MAX_CHANGE_RATE);
-
 
 //        HAL_GPIO_WritePin(RELAY1_GPIO_Port, RELAY1_Pin, (data.buttons & 0x0001) ? GPIO_PIN_SET : GPIO_PIN_RESET);
 //        HAL_GPIO_WritePin(RELAY2_GPIO_Port, RELAY2_Pin, (data.buttons & 0x0002) ? GPIO_PIN_SET : GPIO_PIN_RESET);
@@ -555,6 +472,9 @@ int main(void)
         xSpeed = 0.0f;
         ySpeed = 0.0f;
         rot = 0.0f;
+        target_xSpeed = 0.0f;
+        target_ySpeed = 0.0f;
+        target_rot = 0.0f;
 
         printf("Joystick connection lost.\n");
         lastJoystickUpdate = HAL_GetTick();
@@ -610,69 +530,7 @@ int main(void)
 #else
 
 		// Kinematic calculations for each module
-		// Front Right (RF)
-		float rf_x = xSpeed - (rot * (ROBOT_LENGTH / 2.0f));
-		float rf_y = ySpeed + (rot * (ROBOT_WIDTH / 2.0f));
-		float rf_angle = atan2f(rf_x, rf_y) * (180.0f / (float)M_PI);
-		float rf_speed = sqrtf(rf_x * rf_x + rf_y * rf_y);
-
-		// Front Left (LF)
-		float lf_x = xSpeed + (rot * (ROBOT_LENGTH / 2.0f));
-		float lf_y = ySpeed + (rot * (ROBOT_WIDTH / 2.0f));
-		float lf_angle = atan2f(lf_x, lf_y) * (180.0f / (float)M_PI);
-		float lf_speed = sqrtf(lf_x * lf_x + lf_y * lf_y);
-
-		// Rear Right (RB)
-		float rb_x = xSpeed - (rot * (ROBOT_LENGTH / 2.0f));
-		float rb_y = ySpeed - (rot * (ROBOT_WIDTH / 2.0f));
-		float rb_angle = atan2f(rb_x, rb_y) * (180.0f / (float)M_PI);
-		float rb_speed = sqrtf(rb_x * rb_x + rb_y * rb_y);
-
-		// Rear Left (LB)
-		float lb_x = xSpeed + (rot * (ROBOT_LENGTH / 2.0f));
-		float lb_y = ySpeed - (rot * (ROBOT_WIDTH / 2.0f));
-		float lb_angle = atan2f(lb_x, lb_y) * (180.0f / (float)M_PI);
-		float lb_speed = sqrtf(lb_x * lb_x + lb_y * lb_y);
-
-		// Apply optimization to all modules
-	    optimize_angle(&rf_angle, &rf_speed, 0);
-	    optimize_angle(&lf_angle, &lf_speed, 1);
-	    optimize_angle(&rb_angle, &rb_speed, 2);
-	    optimize_angle(&lb_angle, &lb_speed, 3);
-
-	    // 4. Add steering deadzone
-	    if(fabsf(rf_speed) < 0.01f) rf_angle = 0.0f;
-	    if(fabsf(lf_speed) < 0.01f) lf_angle = 0.0f;
-	    if(fabsf(rb_speed) < 0.01f) rb_angle = 0.0f;
-	    if(fabsf(lb_speed) < 0.01f) lb_angle = 0.0f;
-
-	//		// Ensure angles are within 0-360 degrees
-	//		rf_angle = fmodf(rf_angle + 360.0f, 360.0f);
-	//		lf_angle = fmodf(lf_angle + 360.0f, 360.0f);
-	//		rb_angle = fmodf(rb_angle + 360.0f, 360.0f);
-	//		lb_angle = fmodf(lb_angle + 360.0f, 360.0f);
-
-		// Normalize speeds if any exceeds 1.0
-		float max_speed = fmaxf(fmaxf(rf_speed, lf_speed), fmaxf(rb_speed, lb_speed));
-		if (max_speed > 1.0f) {
-		    rf_speed /= max_speed;
-		    lf_speed /= max_speed;
-		    rb_speed /= max_speed;
-		    lb_speed /= max_speed;
-		}
-
-		// Update modules
-		SM_UpdateSteering(&moduleRF, rf_angle);
-		SM_UpdateDriving(&moduleRF, rf_speed);
-
-		SM_UpdateSteering(&moduleLF, lf_angle);
-		SM_UpdateDriving(&moduleLF, lf_speed);
-
-		SM_UpdateSteering(&moduleRB, rb_angle);
-		SM_UpdateDriving(&moduleRB, rb_speed);
-
-		SM_UpdateSteering(&moduleLB, lb_angle);
-		SM_UpdateDriving(&moduleLB, lb_speed);
+		SwerveDrive_Update(xSpeed, ySpeed, rot);
 
 #ifdef DEBUG_PRINT
 	    // Debug prints for each wheel's speed and angle

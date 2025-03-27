@@ -37,8 +37,8 @@ void SM_Init(SwerveModule* module) {
     HAL_TIM_Encoder_Start(module->steering.encoder_tim, TIM_CHANNEL_ALL);
 
     // Initialize ODrive
-    ODrive_ClearErrors(module->driving.uart);
-    ODrive_SetState(module->driving.uart, ODRIVE_STATE_IDLE);
+    ODrive_ClearErrors(module->driving.axis);
+    ODrive_SetAxisState(module->driving.axis, AXIS_STATE_IDLE);
 
     // Reset PID parameters
     module->steering.prev_error = 0.0f;
@@ -63,22 +63,22 @@ void SM_SetDrivingSpeed(SwerveModule* module, float speed)
     float velocity = speed * module->driving.max_velocity;
     
     // Send velocity command to ODrive
-    ODrive_SendVelocity(module->driving.uart, velocity);
+    ODrive_SetVelocity(module->driving.axis, velocity);
 }
 
 void SM_CalibrateESC(SwerveModule* module)
 {
     // Clear any errors
-    ODrive_ClearErrors(module->driving.uart);
+    ODrive_ClearErrors(module->driving.axis);
     
     // Set to calibration state
-    ODrive_SetState(module->driving.uart, ODRIVE_STATE_CALIBRATION);
+    ODrive_SetAxisState(module->driving.axis, AXIS_STATE_FULL_CALIBRATION_SEQUENCE);
     
     // Wait for calibration to complete (you might want to add proper error checking here)
     HAL_Delay(1000);
     
     // Set to closed loop control
-    ODrive_SetState(module->driving.uart, ODRIVE_STATE_CLOSED_LOOP_CONTROL);
+    ODrive_SetAxisState(module->driving.axis, AXIS_STATE_CLOSED_LOOP_CONTROL);
 }
 
 void SM_Update(SwerveModule* module)

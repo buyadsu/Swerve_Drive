@@ -1,5 +1,5 @@
-Core/Src/swerve_module.o: ../Core/Src/swerve_module.c \
- ../Core/Inc/swerve_module.h \
+Core/Src/odrive_uart.o: ../Core/Src/odrive_uart.c \
+ ../Core/Inc/odrive_uart.h ../Core/Inc/main.h \
  ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal.h \
  ../Core/Inc/stm32g4xx_hal_conf.h \
  ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_rcc.h \
@@ -31,9 +31,9 @@ Core/Src/swerve_module.o: ../Core/Src/swerve_module.c \
  ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_uart_ex.h \
  ../Drivers/BSP/STM32G4xx_Nucleo/stm32g4xx_nucleo.h \
  ../Drivers/BSP/STM32G4xx_Nucleo/stm32g4xx_nucleo_errno.h \
- ../Core/Inc/stm32g4xx_nucleo_conf.h ../Core/Inc/odrive_uart.h \
- ../Core/Inc/main.h
-../Core/Inc/swerve_module.h:
+ ../Core/Inc/stm32g4xx_nucleo_conf.h ../Core/Inc/main.h
+../Core/Inc/odrive_uart.h:
+../Core/Inc/main.h:
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal.h:
 ../Core/Inc/stm32g4xx_hal_conf.h:
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_rcc.h:
@@ -66,5 +66,4 @@ Core/Src/swerve_module.o: ../Core/Src/swerve_module.c \
 ../Drivers/BSP/STM32G4xx_Nucleo/stm32g4xx_nucleo.h:
 ../Drivers/BSP/STM32G4xx_Nucleo/stm32g4xx_nucleo_errno.h:
 ../Core/Inc/stm32g4xx_nucleo_conf.h:
-../Core/Inc/odrive_uart.h:
 ../Core/Inc/main.h:
