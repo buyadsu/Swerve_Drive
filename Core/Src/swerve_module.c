@@ -7,9 +7,15 @@
 
 
 #include "swerve_module.h"
+#include "odrive_uart.h"
+#include <string.h>
+#include <stdio.h>
 
 // Debug print
 //#define DEBUG_PRINT
+
+// Private variables
+static float prev_angles[4] = {0};  // RF, LF, RB, LB
 
 // Private helper functions
 static float normalize_angle_error(float error);
@@ -18,6 +24,11 @@ static int16_t clamp_pid_output(float pid_output, int16_t min_pwm, int16_t max_p
 static void set_steering_pwm(SteeringMotor* motor, int16_t pwm);
 static void constrain_pulse_width(uint16_t* pulse, uint16_t min, uint16_t max);
 
+// Private function prototypes
+static void optimize_angle(float* angle, float* speed, int module_idx);
+static void update_steering_pid(SwerveModule* module, float target_angle);
+static float get_current_angle(SwerveModule* module);
+
 void SM_Init(SwerveModule* module) {
     // Initialize steering motor PWM
     HAL_TIM_PWM_Start(module->steering.pwm_tim, module->steering.pwm_channel);
@@ -25,9 +36,10 @@ void SM_Init(SwerveModule* module) {
     // Initialize encoder timer
     HAL_TIM_Encoder_Start(module->steering.encoder_tim, TIM_CHANNEL_ALL);
 
-    // Initialize driving motor PWM
-    HAL_TIM_PWM_Start(module->driving.pwm_tim, module->driving.pwm_channel);
-//    __HAL_TIM_SET_COMPARE(module->driving.pwm_tim, module->driving.pwm_channel, module->driving.arming_pulse);
+    // Initialize ODrive
+    ODrive_ClearErrors(module->driving.uart);
+    ODrive_SetState(module->driving.uart, ODRIVE_STATE_IDLE);
+
     // Reset PID parameters
     module->steering.prev_error = 0.0f;
     module->steering.integral = 0.0f;
@@ -39,26 +51,96 @@ static int16_t clamp_pid_output(float pid_output, int16_t min_pwm, int16_t max_p
     return (int16_t)pid_output;
 }
 
-void SM_UpdateSteering(SwerveModule* module, float target_angle) {
-    float current = SM_GetCurrentAngle(module);
-    float pid_output = steering_pid_update(&module->steering, target_angle, current);
-
-    // Clamp the PID output if necessary (choose appropriate PWM limits)
-    pid_output = clamp_pid_output(pid_output, -module->steering.max_pwm, module->steering.max_pwm);
-
-    set_steering_pwm(&module->steering, (int16_t)pid_output);
+void SM_SetSteeringAngle(SwerveModule* module, float angle)
+{
+    optimize_angle(&angle, NULL, module->driving.axis);
+    update_steering_pid(module, angle);
 }
 
-void SM_UpdateDriving(SwerveModule* module, float speed) {
-	uint16_t target_speed = module->driving.min_pulse + (uint16_t)((module->driving.max_pulse - module->driving.min_pulse) * fabsf(speed));
-    constrain_pulse_width(&target_speed, module->driving.min_pulse, module->driving.max_pulse);
+void SM_SetDrivingSpeed(SwerveModule* module, float speed)
+{
+    // Convert speed to velocity (turns/s)
+    float velocity = speed * module->driving.max_velocity;
+    
+    // Send velocity command to ODrive
+    ODrive_SendVelocity(module->driving.uart, velocity);
+}
 
-	#ifdef DEBUG_PRINT    // For debugging, you might print the pulse:
-		 printf("Driving speed: %d\n", target_speed);
-		 printf("Driving PSC: %lu, ARR: %lu\n", module->driving.pwm_tim->Instance->PSC, module->driving.pwm_tim->Instance->ARR);
-	#endif
+void SM_CalibrateESC(SwerveModule* module)
+{
+    // Clear any errors
+    ODrive_ClearErrors(module->driving.uart);
+    
+    // Set to calibration state
+    ODrive_SetState(module->driving.uart, ODRIVE_STATE_CALIBRATION);
+    
+    // Wait for calibration to complete (you might want to add proper error checking here)
+    HAL_Delay(1000);
+    
+    // Set to closed loop control
+    ODrive_SetState(module->driving.uart, ODRIVE_STATE_CLOSED_LOOP_CONTROL);
+}
 
-    __HAL_TIM_SET_COMPARE(module->driving.pwm_tim, module->driving.pwm_channel, target_speed);
+void SM_Update(SwerveModule* module)
+{
+    // Update steering PID
+    float current_angle = get_current_angle(module);
+    update_steering_pid(module, current_angle);
+}
+
+static void optimize_angle(float* angle, float* speed, int module_idx)
+{
+    const float original_angle = *angle;
+    if (speed) *speed = fabsf(*speed);  // Maintain positive speed
+
+    // Normalize to 0-360 first
+    *angle = fmodf(*angle + 360.0f, 360.0f);
+
+    // Calculate shortest path considering rotation requirements
+    float angle_diff = *angle - prev_angles[module_idx];
+    if (angle_diff > 180.0f) {
+        *angle -= 360.0f;
+    } else if (angle_diff < -180.0f) {
+        *angle += 360.0f;
+    }
+
+    // Update previous angle
+    prev_angles[module_idx] = *angle;
+
+    // Speed deadzone handling
+    if (speed && *speed < 0.1f) {
+        *angle = 0.0f;
+        *speed = 0.0f;
+        prev_angles[module_idx] = 0.0f;
+    }
+}
+
+static void update_steering_pid(SwerveModule* module, float target_angle)
+{
+    float current_angle = get_current_angle(module);
+    float error = target_angle - current_angle;
+    
+    // Calculate PID terms
+    float p_term = module->steering.Kp * error;
+    float i_term = module->steering.Ki * error * module->steering.dt;
+    float d_term = module->steering.Kd * error / module->steering.dt;
+    
+    // Combine terms and limit output
+    float output = p_term + i_term + d_term;
+    output = fmaxf(fminf(output, module->steering.max_pwm), -module->steering.max_pwm);
+    
+    // Set direction and PWM
+    HAL_GPIO_WritePin(module->steering.dir_gpio_port, module->steering.dir_gpio_pin, 
+                      output >= 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    
+    __HAL_TIM_SET_COMPARE(module->steering.pwm_tim, module->steering.pwm_channel, 
+                         (uint32_t)fabsf(output));
+}
+
+static float get_current_angle(SwerveModule* module)
+{
+    int32_t counts = (int32_t)__HAL_TIM_GET_COUNTER(module->steering.encoder_tim);
+    return counts * module->counts_per_degree;
 }
 
 float SM_GetCurrentAngle(SwerveModule* module) {
@@ -81,24 +163,6 @@ bool SM_SteeringAtTarget(SwerveModule* module, float target_angle, float toleran
 	#endif
 
     return fabsf(current - target_angle) <= tolerance;
-}
-
-void SM_CalibrateESC(DrivingMotor* motor) {
-	__HAL_TIM_SET_COMPARE(motor->pwm_tim, motor->pwm_channel, motor->max_pulse);
-    printf("Driving Calibrate PSC: %lu, ARR: %lu\n", motor->pwm_tim->Instance->PSC, motor->pwm_tim->Instance->ARR);
-    printf("Driving Calibrate PCC: %lu\n", motor->pwm_tim->Instance->CCR1);
-    printf("Driving Calibrate PCC: %lu\n", motor->pwm_tim->Instance->CCR2);
-    printf("Driving Calibrate PCC: %lu\n", motor->pwm_tim->Instance->CCR3);
-    printf("Driving Calibrate PCC: %lu\n", motor->pwm_tim->Instance->CCR4);
-	HAL_Delay(7000);
-	__HAL_TIM_SET_COMPARE(motor->pwm_tim, motor->pwm_channel, motor->min_pulse);
-    printf("Driving Calibrate PSC: %lu, ARR: %lu\n", motor->pwm_tim->Instance->PSC, motor->pwm_tim->Instance->ARR);
-    printf("Driving Calibrate PCC: %lu\n", motor->pwm_tim->Instance->CCR1);
-    printf("Driving Calibrate PCC: %lu\n", motor->pwm_tim->Instance->CCR2);
-    printf("Driving Calibrate PCC: %lu\n", motor->pwm_tim->Instance->CCR3);
-    printf("Driving Calibrate PCC: %lu\n", motor->pwm_tim->Instance->CCR4);
-	HAL_Delay(8000);
-	__HAL_TIM_SET_COMPARE(motor->pwm_tim, motor->pwm_channel, motor->arming_pulse);
 }
 
 static float normalize_angle_error(float error) {

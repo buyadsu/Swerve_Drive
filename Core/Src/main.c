@@ -73,6 +73,8 @@ TIM_HandleTypeDef htim17;
 TIM_HandleTypeDef htim20;
 
 UART_HandleTypeDef huart4;
+UART_HandleTypeDef huart5;
+UART_HandleTypeDef huart1;  // For joystick
 
 /* USER CODE BEGIN PV */
 float xSpeed = 0.0f, ySpeed = 0.0f, rot = 0.0f;
@@ -84,16 +86,6 @@ bool lastZalahState;
 bool zalahState = false;
 bool PASS_State = false;
 bool ZALAH_State = false;
-
-// Define motor PWM channels
-#define MOTOR1_TIM    htim5
-#define MOTOR1_CH     TIM_CHANNEL_2
-
-#define MOTOR2_TIM    htim17
-#define MOTOR2_CH     TIM_CHANNEL_1
-
-#define MOTOR3_TIM    htim16
-#define MOTOR3_CH     TIM_CHANNEL_1
 
 // Global state for previous angles
 static float prev_angles[4] = {0};  // RF, LF, RB, LB
@@ -109,6 +101,8 @@ static void MX_TIM3_Init(void);
 static void MX_TIM8_Init(void);
 static void MX_TIM20_Init(void);
 static void MX_UART4_Init(void);
+static void MX_UART5_Init(void);
+static void MX_UART1_Init(void);
 static void MX_TIM16_Init(void);
 static void MX_TIM17_Init(void);
 static void MX_TIM5_Init(void);
@@ -232,19 +226,20 @@ int main(void)
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
 	      .dt = 0.1f,
-		  .max_pwm = 199
+		  .max_pwm = 199,
+          .prev_error = 0.0f,
+          .integral = 0.0f
 	  },
 	  .driving = {
-	      .pwm_tim = &htim2,
-	      .pwm_channel = TIM_CHANNEL_1,
-	      .min_pulse = 1110-1,
-	      .max_pulse = 1400-1,
-	      .arming_pulse = 1100-1
+	      .uart = &huart4,
+	      .axis = 0,
+	      .max_velocity = 2.0f,  // 2 turns/s max velocity
+	      .max_current = 10.0f   // 10A max current
 	  },
-	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
+	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8)
   };
 
-  SwerveModule moduleLF = {	// Configuration moduleRF
+  SwerveModule moduleLF = {	// Configuration moduleLF
 	  .steering = {
 	      .dir_gpio_port = IN4_GPIO_Port,
 	      .dir_gpio_pin = IN4_Pin,
@@ -256,43 +251,45 @@ int main(void)
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
 	      .dt = 0.1f,
-		  .max_pwm = 199
+		  .max_pwm = 199,
+          .prev_error = 0.0f,
+          .integral = 0.0f
 	  },
 	  .driving = {
-	      .pwm_tim = &htim2,
-	      .pwm_channel = TIM_CHANNEL_2,
-	      .min_pulse = 1110-1,
-	      .max_pulse = 1400-1,
-	      .arming_pulse = 1100-1
+	      .uart = &huart4,
+	      .axis = 1,
+	      .max_velocity = 2.0f,
+	      .max_current = 10.0f
 	  },
-	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
+	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8)
   };
 
-  SwerveModule moduleRB = {	// Configuration moduleRF
+  SwerveModule moduleRB = {	// Configuration moduleRB
 	  .steering = {
 	      .dir_gpio_port = IN1_GPIO_Port,
 	      .dir_gpio_pin = IN1_Pin,
 	      .pwm_tim = &htim3,
 	      .pwm_channel = TIM_CHANNEL_1,
           .encoder_tim = &htim8,
-		  .Kp = 2.5f,  // Increase proportional gain
-		  .Ki = 0.1f, // Reduce integral to prevent windup
+		  .Kp = 2.5f,
+		  .Ki = 0.1f,
 		  .Kd = 0.01f,
 	      .integral_limit = 500.0f,
 	      .dt = 0.1f,
-		  .max_pwm = 199
+		  .max_pwm = 199,
+          .prev_error = 0.0f,
+          .integral = 0.0f
 	  },
 	  .driving = {
-	      .pwm_tim = &htim2,
-	      .pwm_channel = TIM_CHANNEL_3,
-	      .min_pulse = 1110-1,
-	      .max_pulse = 1400-1,
-	      .arming_pulse = 1100-1
+	      .uart = &huart5,
+	      .axis = 0,
+	      .max_velocity = 2.0f,
+	      .max_current = 10.0f
 	  },
-	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
+	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8)
   };
 
-  SwerveModule moduleLB = {	// Configuration moduleRF
+  SwerveModule moduleLB = {	// Configuration moduleLB
 	  .steering = {
 	      .dir_gpio_port = IN3_GPIO_Port,
 	      .dir_gpio_pin = IN3_Pin,
@@ -304,16 +301,17 @@ int main(void)
 	      .Kd = 0.01f,
 	      .integral_limit = 500.0f,
 	      .dt = 0.1f,
-		  .max_pwm = 199
+		  .max_pwm = 199,
+          .prev_error = 0.0f,
+          .integral = 0.0f
 	  },
 	  .driving = {
-	      .pwm_tim = &htim2,
-	      .pwm_channel = TIM_CHANNEL_4,
-	      .min_pulse = 1110-1,
-	      .max_pulse = 1400-1,
-	      .arming_pulse = 1100-1
+	      .uart = &huart5,
+	      .axis = 1,
+	      .max_velocity = 2.0f,
+	      .max_current = 10.0f
 	  },
-	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
+	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8)
   };
   /* USER CODE END 1 */
 
@@ -323,7 +321,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  JOYSTICK_Init(&huart4);  // Pass your UART handle
+  JOYSTICK_Init(&huart1);  // Pass your UART handle
   JOYSTICK_SetTimeout(100); // Optional: Set custom timeout
   /* USER CODE END Init */
 
@@ -343,6 +341,8 @@ int main(void)
   MX_TIM8_Init();
   MX_TIM20_Init();
   MX_UART4_Init();
+  MX_UART5_Init();
+  MX_UART1_Init();
   MX_TIM16_Init();
   MX_TIM17_Init();
   MX_TIM5_Init();
@@ -353,10 +353,13 @@ int main(void)
   SM_Init(&moduleRB);
   SM_Init(&moduleLB);
 
-  // Start PWM timers
-  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_2);
-  HAL_TIM_PWM_Start(&htim16, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
+  // Initialize ODrive UART
+  ODrive_UART_Init(&huart4);
+  ODrive_UART_Init(&huart5);
+
+  // Initialize joystick on UART1
+  JOYSTICK_Init(&huart1);
+  JOYSTICK_SetTimeout(100);
   /* USER CODE END 2 */
 
   /* Initialize led */
@@ -1298,6 +1301,98 @@ static void MX_UART4_Init(void)
 
   /* USER CODE END UART4_Init 2 */
 
+}
+
+/**
+  * @brief UART5 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART5_Init(void)
+{
+  /* USER CODE BEGIN UART5_Init 0 */
+
+  /* USER CODE END UART5_Init 0 */
+
+  /* USER CODE BEGIN UART5_Init 1 */
+
+  /* USER CODE END UART5_Init 1 */
+  huart5.Instance = UART5;
+  huart5.Init.BaudRate = 115200;
+  huart5.Init.WordLength = UART_WORDLENGTH_8B;
+  huart5.Init.StopBits = UART_STOPBITS_1;
+  huart5.Init.Parity = UART_PARITY_NONE;
+  huart5.Init.Mode = UART_MODE_TX_RX;
+  huart5.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart5.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart5.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart5.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart5.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart5, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart5, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART5_Init 2 */
+
+  /* USER CODE END UART5_Init 2 */
+}
+
+/**
+  * @brief UART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART1_Init(void)
+{
+  /* USER CODE BEGIN UART1_Init 0 */
+
+  /* USER CODE END UART1_Init 0 */
+
+  /* USER CODE BEGIN UART1_Init 1 */
+
+  /* USER CODE END UART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 500000;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart1.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart1, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart1, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART1_Init 2 */
+
+  /* USER CODE END UART1_Init 2 */
 }
 
 /**
