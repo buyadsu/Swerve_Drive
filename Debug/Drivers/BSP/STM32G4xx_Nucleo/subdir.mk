@@ -24,4 +24,3 @@ clean-Drivers-2f-BSP-2f-STM32G4xx_Nucleo:
 	-$(RM) ./Drivers/BSP/STM32G4xx_Nucleo/stm32g4xx_nucleo.cyclo ./Drivers/BSP/STM32G4xx_Nucleo/stm32g4xx_nucleo.d ./Drivers/BSP/STM32G4xx_Nucleo/stm32g4xx_nucleo.o ./Drivers/BSP/STM32G4xx_Nucleo/stm32g4xx_nucleo.su
 
 .PHONY: clean-Drivers-2f-BSP-2f-STM32G4xx_Nucleo
-
