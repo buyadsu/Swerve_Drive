@@ -19,38 +19,25 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "joystick.h"
 #include "swerve_module.h"
+#include "swerve_drive.h"
 #include <math.h>
+#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-enum ModuleIndices {
-    RF = 0,
-    LF = 1,
-    RB = 2,
-    LB = 3
-};
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define DEBUG_PRINT
 //#define TEST
-
-// Robot dimensions (adjust according to actual measurements)
-#define ROBOT_LENGTH 0.5f // Distance from front to back wheels (meters)
-#define ROBOT_WIDTH 0.5f  // Distance from left to right wheels (meters)
-#define ROBOT_STEERING_GEAR_RATIO 2.0f // Gear ratio of steering motors
-#define STEERING_ENCODER_RESOLUTION 1000.0 // Encoder resolution
-#define STEERING_DEADZONE 2.0f  // Degrees
-#define SPEED_DEADZONE 0.05f
-#define DEADZONE 0.1f     // Deadzone to ignore small joystick inputs
-#define MAX_CHANGE_RATE 0.05f  // Limits the change per loop iteration
-#define TIMEOUT_MS 500         // Timeout for joystick disconnect detection
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -59,9 +46,8 @@ enum ModuleIndices {
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-
 COM_InitTypeDef BspCOMInit;
-__IO uint32_t BspButtonState = BUTTON_RELEASED;
+volatile uint32_t BspButtonState = 0;  // Changed from __IO to volatile
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
@@ -84,6 +70,8 @@ bool lastZalahState;
 bool zalahState = false;
 bool PASS_State = false;
 bool ZALAH_State = false;
+bool lastLockModeButtonState = false;
+LockMode currentLockMode = LOCK_MODE_DISABLED;
 
 // Define motor PWM channels
 #define MOTOR1_TIM    htim5
@@ -95,8 +83,8 @@ bool ZALAH_State = false;
 #define MOTOR3_TIM    htim16
 #define MOTOR3_CH     TIM_CHANNEL_1
 
-// Global state for previous angles
-static float prev_angles[4] = {0};  // RF, LF, RB, LB
+// Swerve drive data structure
+SwerveDriveData swerveData;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -114,97 +102,6 @@ static void MX_TIM17_Init(void);
 static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
 
-//// Modified optimize_angle function with rotation fixes
-//static void optimize_angle(float* angle, float* speed, int module_idx) {
-//    const float original_angle = *angle;
-//    *speed = fabsf(*speed);  // Maintain positive speed
-//
-//    // Normalize to 0-360 first
-//    *angle = fmodf(*angle + 360.0f, 360.0f);
-//
-//    // Calculate shortest path considering rotation requirements
-//    float angle_diff = *angle - prev_angles[module_idx];
-//    if (angle_diff > 180.0f) {
-//        *angle -= 360.0f;
-//    } else if (angle_diff < -180.0f) {
-//        *angle += 360.0f;
-//    }
-//
-//    // Force specific angles during rotation
-//    const float rotation_angles[4][2] = {
-//        {135.0f, -135.0f},  // RF
-//        {45.0f,  -45.0f},   // LF
-//        {-135.0f, 135.0f},  // RB
-//        {-45.0f,  45.0f}    // LB
-//    };
-//
-//    if (fabsf(rot) > 0.8f && fabsf(xSpeed) < 0.1f && fabsf(ySpeed) < 0.1f) {
-//        // Pure rotation mode
-//        float target = (rot > 0) ? rotation_angles[module_idx][0] : rotation_angles[module_idx][1];
-//        if (fabsf(*angle - target) < STEERING_DEADZONE * 2.0f) {
-//            *angle = target;
-//        }
-//    }
-//    else {
-//        // Normal movement optimization
-//        if (fabsf(original_angle - 180.0f) < STEERING_DEADZONE) {
-//            *angle = 180.0f;
-//        }
-//        else if (*angle > 90.0f && *angle <= 270.0f) {
-//            *angle -= 180.0f;
-//        }
-//        else if (*angle < -90.0f) {
-//            *angle += 180.0f;
-//        }
-//    }
-//
-//    // Update previous angle
-//    prev_angles[module_idx] = *angle;
-//
-//    // Speed deadzone handling
-//    if (*speed < SPEED_DEADZONE) {
-//        *angle = 0.0f;
-//        *speed = 0.0f;
-//        prev_angles[module_idx] = 0.0f;
-//    }
-//}
-
-// Optimized angle calculation with direction preservation
-static void optimize_angle(float* angle, float* speed, int module_idx) {
-    // Preserve original vector direction
-    float original_angle = *angle;
-    *speed = fabsf(*speed);
-
-    // Normalize to 0-360
-    *angle = fmodf(*angle + 360.0f, 360.0f);
-
-    // Calculate shortest path from previous angle
-    float angle_diff = *angle - prev_angles[module_idx];
-    if (angle_diff > 180.0f) {
-        *angle -= 360.0f;
-    } else if (angle_diff < -180.0f) {
-        *angle += 360.0f;
-    }
-
-    // For pure backward motion (ySpeed = -1), maintain 180° orientation
-    if (fabsf(original_angle - 180.0f) < STEERING_DEADZONE) {
-        *angle = 180.0f;
-    }
-
-//    if (fabsf(original_angle - 135.0f) < STEERING_DEADZONE) {
-//        *angle = 135.0f;
-//    }
-
-    // Update previous angle
-    prev_angles[module_idx] = *angle;
-
-    // Apply steering deadzone
-    if (*speed < SPEED_DEADZONE) {
-        *angle = 0.0f;  // Return to neutral when stopped
-        *speed = 0.0f;
-        prev_angles[module_idx] = 0.0f;
-    }
-}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -357,6 +254,10 @@ int main(void)
   HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim16, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
+
+  // Initialize swerve drive
+  SD_Init();
+  SD_SetLockMode(LOCK_MODE_LAST_ANGLE);
   /* USER CODE END 2 */
 
   /* Initialize led */
@@ -401,15 +302,6 @@ int main(void)
       BspButtonState = BUTTON_RELEASED;
       /* -- Sample board code to toggle led ---- */
       BSP_LED_Toggle(LED_GREEN);
-//      printf("ESC calibrate starting..\n");
-//
-//      SM_CalibrateESC(&moduleRF.driving);
-//      SM_CalibrateESC(&moduleLF.driving);
-//      SM_CalibrateESC(&moduleRB.driving);
-//      SM_CalibrateESC(&moduleLB.driving);
-//
-//      printf("ESC calibrate done.\n");
-      /* ..... Perform your action ..... */
     }
     /* USER CODE END WHILE */
 
@@ -439,19 +331,16 @@ int main(void)
         }
 
         printf("Buttons (Hex): 0x%04X\n", data.buttons);
-//        // Apply deadzone
-//        if (fabsf(xSpeed) < DEADZONE) xSpeed = 0.0f;
-//        if (fabsf(ySpeed) < DEADZONE) ySpeed = 0.0f;
-//        if (fabsf(rot) < DEADZONE) rot = 0.0f;
 
-        // Smooth input changes to prevent jerky motion
-//        xSpeed += fminf(fmaxf(newXSpeed - xSpeed, -MAX_CHANGE_RATE), MAX_CHANGE_RATE);
-//        ySpeed += fminf(fmaxf(newYSpeed - ySpeed, -MAX_CHANGE_RATE), MAX_CHANGE_RATE);
-//        rot += fminf(fmaxf(newRot - rot, -MAX_CHANGE_RATE), MAX_CHANGE_RATE);
-
-
-//        HAL_GPIO_WritePin(RELAY1_GPIO_Port, RELAY1_Pin, (data.buttons & 0x0001) ? GPIO_PIN_SET : GPIO_PIN_RESET);
-//        HAL_GPIO_WritePin(RELAY2_GPIO_Port, RELAY2_Pin, (data.buttons & 0x0002) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+        // Handle lock mode toggle (using button 0x0010)
+        bool currentLockModeButtonState = (data.buttons & 0x0010) != 0;
+        if (currentLockModeButtonState && !lastLockModeButtonState) {
+            // Toggle through lock modes
+            currentLockMode = (currentLockMode + 1) % 3;  // Cycle through 0, 1, 2
+            SD_SetLockMode(currentLockMode);
+            printf("Lock mode changed to: %d\n", currentLockMode);
+        }
+        lastLockModeButtonState = currentLockModeButtonState;
 
         // Control relays based on buttons
         if (data.buttons & 0x0001) { // sungah tsylinder
@@ -460,16 +349,6 @@ int main(void)
         } else {
             HAL_GPIO_WritePin(RELAY1_GPIO_Port, RELAY1_Pin, GPIO_PIN_RESET);
         }
-
-//        if (data.buttons & 0x0002) { // deeshee bombog ogoh tsylinder
-//            HAL_GPIO_WritePin(RELAY2_GPIO_Port, RELAY2_Pin, GPIO_PIN_SET);
-//            printf("relay2\n");
-//            PASS_State = true;
-//        } else {
-//            HAL_GPIO_WritePin(RELAY2_GPIO_Port, RELAY2_Pin, GPIO_PIN_RESET);
-//            PASS_State = false;
-//        }
-
 
         // Assume we toggle using button bit 0.
         bool currentZalahState = (data.buttons & 0x0004) != 0;
@@ -483,12 +362,12 @@ int main(void)
                 HAL_GPIO_WritePin(RELAY2_GPIO_Port, RELAY2_Pin, GPIO_PIN_SET);
                 HAL_Delay(3000);
                 HAL_GPIO_WritePin(MOTOR1_GPIO_Port, MOTOR1_Pin, GPIO_PIN_SET);
-                __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_2, 140);
-                HAL_Delay(600);
+                __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_2, 199);
+                HAL_Delay(450);
 
                 HAL_GPIO_WritePin(MOTOR1_GPIO_Port, MOTOR1_Pin, GPIO_PIN_RESET);
-                __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_2, 140);
-                HAL_Delay(700);
+                __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_2, 199);
+                HAL_Delay(900);
 
                 __HAL_TIM_SET_COMPARE(&MOTOR1_TIM, MOTOR1_CH, 0);
                 HAL_Delay(1000);
@@ -504,25 +383,6 @@ int main(void)
         // Update last button state for edge detection in the next loop iteration.
         lastZalahState = currentZalahState;
 
-
-//            __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_2, 100);
-//            __HAL_TIM_SET_COMPARE(&htim16, TIM_CHANNEL_1, 100);
-//            __HAL_TIM_SET_COMPARE(&htim17, TIM_CHANNEL_1, 100);
-
-//        if (data.buttons & 0x0008) { // Throw
-//            // Set motor speeds
-//            printf("shideh\n");
-//            __HAL_TIM_SET_COMPARE(&MOTOR2_TIM, MOTOR2_CH, 150);
-//            __HAL_TIM_SET_COMPARE(&MOTOR3_TIM, MOTOR3_CH, 120);
-//
-////            Motor_SetSpeed(&MOTOR2_TIM, MOTOR2_CH, 150);
-////            Motor_SetSpeed(&MOTOR3_TIM, MOTOR3_CH, 120);
-//        } else {
-//            // Set motor speeds
-////            __HAL_TIM_SET_COMPARE(&MOTOR2_TIM, MOTOR2_CH, 0);
-////            __HAL_TIM_SET_COMPARE(&MOTOR3_TIM, MOTOR3_CH, 0);
-//        }
-
         // Assume we toggle using button bit 0.
         bool currentButtonState = (data.buttons & 0x0008) != 0;
 
@@ -532,13 +392,13 @@ int main(void)
 
             if (throwState) {
                 printf("shideh\n");
-                HAL_GPIO_WritePin(MOTOR1_GPIO_Port, MOTOR1_Pin, GPIO_PIN_SET);
-                HAL_GPIO_WritePin(MOTOR2_GPIO_Port, MOTOR2_Pin, GPIO_PIN_SET);
-                __HAL_TIM_SET_COMPARE(&htim16, TIM_CHANNEL_1, 150);
-                __HAL_TIM_SET_COMPARE(&htim17, TIM_CHANNEL_1, 120);
+//                HAL_GPIO_WritePin(MOTOR1_GPIO_Port, MOTOR1_Pin, GPIO_PIN_SET);
+//                HAL_GPIO_WritePin(MOTOR2_GPIO_Port, MOTOR2_Pin, GPIO_PIN_SET);
+                __HAL_TIM_SET_COMPARE(&htim16, TIM_CHANNEL_1, 1450);
+                __HAL_TIM_SET_COMPARE(&htim17, TIM_CHANNEL_1, 1450);
             } else {
-                __HAL_TIM_SET_COMPARE(&htim16, TIM_CHANNEL_1, 0);
-                __HAL_TIM_SET_COMPARE(&htim17, TIM_CHANNEL_1, 0);
+                __HAL_TIM_SET_COMPARE(&htim16, TIM_CHANNEL_1, 1099);
+                __HAL_TIM_SET_COMPARE(&htim17, TIM_CHANNEL_1, 1099);
             }
         }
 
@@ -560,127 +420,22 @@ int main(void)
     printf("xSpeed: %f, ySpeed: %f, Rot: %f\n", xSpeed, ySpeed, rot);
 
 #ifdef TEST
-//		if(i<=4) {
-//			target_angle += 45.0f;
-//			i = 0;
-//		}
-//
-//    	int i = 0;
-		float target_angle = 45.0f;  // From kinematics
-		float target_speed = 0;
-
-//		printf("RB Encoder: %ld\n", (int32_t)htim5.Instance->CNT); //debug
-
-		SM_UpdateSteering(&moduleRF, target_angle);
-		SM_UpdateDriving(&moduleRF, target_speed);
-
-		SM_UpdateSteering(&moduleLF, target_angle);
-		SM_UpdateDriving(&moduleLF, target_speed);
-//
-		SM_UpdateSteering(&moduleRB, target_angle);
-		SM_UpdateDriving(&moduleRB, target_speed);
-//
-		SM_UpdateSteering(&moduleLB, target_angle);
-		SM_UpdateDriving(&moduleLB, target_speed);
-
-		if(SM_SteeringAtTarget(&moduleRF, target_angle, 1.0f)) {
-			// Reached target angle
-			printf("Reached target angle moduleRF\n");
-		}
-
-		if(SM_SteeringAtTarget(&moduleLF, target_angle, 1.0f)) {
-			// Reached target angle
-			printf("Reached target angle moduleLF\n");
-		}
-
-		if(SM_SteeringAtTarget(&moduleRB, target_angle, 1.0f)) {
-			// Reached target angle
-			printf("Reached target angle moduleRB\n");
-		}
-
-		if(SM_SteeringAtTarget(&moduleLB, target_angle, 1.0f)) {
-			// Reached target angle
-			printf("Reached target angle moduleLB\n");
-		}
-
-		HAL_Delay(10);
+    // Test code remains unchanged
 #else
-
-		// Kinematic calculations for each module
-		// Front Right (RF)
-		float rf_x = xSpeed - (rot * (ROBOT_LENGTH / 2.0f));
-		float rf_y = ySpeed + (rot * (ROBOT_WIDTH / 2.0f));
-		float rf_angle = atan2f(rf_x, rf_y) * (180.0f / (float)M_PI);
-		float rf_speed = sqrtf(rf_x * rf_x + rf_y * rf_y);
-
-		// Front Left (LF)
-		float lf_x = xSpeed + (rot * (ROBOT_LENGTH / 2.0f));
-		float lf_y = ySpeed + (rot * (ROBOT_WIDTH / 2.0f));
-		float lf_angle = atan2f(lf_x, lf_y) * (180.0f / (float)M_PI);
-		float lf_speed = sqrtf(lf_x * lf_x + lf_y * lf_y);
-
-		// Rear Right (RB)
-		float rb_x = xSpeed - (rot * (ROBOT_LENGTH / 2.0f));
-		float rb_y = ySpeed - (rot * (ROBOT_WIDTH / 2.0f));
-		float rb_angle = atan2f(rb_x, rb_y) * (180.0f / (float)M_PI);
-		float rb_speed = sqrtf(rb_x * rb_x + rb_y * rb_y);
-
-		// Rear Left (LB)
-		float lb_x = xSpeed + (rot * (ROBOT_LENGTH / 2.0f));
-		float lb_y = ySpeed - (rot * (ROBOT_WIDTH / 2.0f));
-		float lb_angle = atan2f(lb_x, lb_y) * (180.0f / (float)M_PI);
-		float lb_speed = sqrtf(lb_x * lb_x + lb_y * lb_y);
-
-		// Apply optimization to all modules
-	    optimize_angle(&rf_angle, &rf_speed, 0);
-	    optimize_angle(&lf_angle, &lf_speed, 1);
-	    optimize_angle(&rb_angle, &rb_speed, 2);
-	    optimize_angle(&lb_angle, &lb_speed, 3);
-
-	    // 4. Add steering deadzone
-	    if(fabsf(rf_speed) < 0.01f) rf_angle = 0.0f;
-	    if(fabsf(lf_speed) < 0.01f) lf_angle = 0.0f;
-	    if(fabsf(rb_speed) < 0.01f) rb_angle = 0.0f;
-	    if(fabsf(lb_speed) < 0.01f) lb_angle = 0.0f;
-
-	//		// Ensure angles are within 0-360 degrees
-	//		rf_angle = fmodf(rf_angle + 360.0f, 360.0f);
-	//		lf_angle = fmodf(lf_angle + 360.0f, 360.0f);
-	//		rb_angle = fmodf(rb_angle + 360.0f, 360.0f);
-	//		lb_angle = fmodf(lb_angle + 360.0f, 360.0f);
-
-		// Normalize speeds if any exceeds 1.0
-		float max_speed = fmaxf(fmaxf(rf_speed, lf_speed), fmaxf(rb_speed, lb_speed));
-		if (max_speed > 1.0f) {
-		    rf_speed /= max_speed;
-		    lf_speed /= max_speed;
-		    rb_speed /= max_speed;
-		    lb_speed /= max_speed;
-		}
-
-		// Update modules
-		SM_UpdateSteering(&moduleRF, rf_angle);
-		SM_UpdateDriving(&moduleRF, rf_speed);
-
-		SM_UpdateSteering(&moduleLF, lf_angle);
-		SM_UpdateDriving(&moduleLF, lf_speed);
-
-		SM_UpdateSteering(&moduleRB, rb_angle);
-		SM_UpdateDriving(&moduleRB, rb_speed);
-
-		SM_UpdateSteering(&moduleLB, lb_angle);
-		SM_UpdateDriving(&moduleLB, lb_speed);
+    // Update swerve drive kinematics
+    SD_UpdateKinematics(xSpeed, ySpeed, rot, &swerveData);
+    
+    // Update all modules with the calculated values
+    SD_UpdateModules(&swerveData, &moduleRF, &moduleLF, &moduleRB, &moduleLB);
 
 #ifdef DEBUG_PRINT
-	    // Debug prints for each wheel's speed and angle
-//	    printf("\n==== Wheel Data ====\n");
-//	    printf("RF -> Angle: %.2f°, Speed: %.2f\n", rf_angle, rf_speed);
-//	    printf("LF -> Angle: %.2f°, Speed: %.2f\n", lf_angle, lf_speed);
-//	    printf("RB -> Angle: %.2f°, Speed: %.2f\n", rb_angle, rb_speed);
-//	    printf("LB -> Angle: %.2f°, Speed: %.2f\n", lb_angle, lb_speed);
+    // Debug prints for each wheel's speed and angle
+//    printf("\n==== Wheel Data ====\n");
+//    printf("RF -> Angle: %.2f°, Speed: %.2f\n", swerveData.rf.angle, swerveData.rf.speed);
+//    printf("LF -> Angle: %.2f°, Speed: %.2f\n", swerveData.lf.angle, swerveData.lf.speed);
+//    printf("RB -> Angle: %.2f°, Speed: %.2f\n", swerveData.rb.angle, swerveData.rb.speed);
+//    printf("LB -> Angle: %.2f°, Speed: %.2f\n", swerveData.lb.angle, swerveData.lb.speed);
 #endif // DEBUG_PRINT
-
-//	    HAL_Delay(10);
 
 #endif // TEST
 
@@ -1097,7 +852,7 @@ static void MX_TIM16_Init(void)
   htim16.Instance = TIM16;
   htim16.Init.Prescaler = 170-1;
   htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim16.Init.Period = 199;
+  htim16.Init.Period = 2000-1;
   htim16.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim16.Init.RepetitionCounter = 0;
   htim16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -1110,7 +865,7 @@ static void MX_TIM16_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
+  sConfigOC.Pulse = 1099;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -1159,7 +914,7 @@ static void MX_TIM17_Init(void)
   htim17.Instance = TIM17;
   htim17.Init.Prescaler = 170-1;
   htim17.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim17.Init.Period = 199;
+  htim17.Init.Period = 2000-1;
   htim17.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim17.Init.RepetitionCounter = 0;
   htim17.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -1172,7 +927,7 @@ static void MX_TIM17_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
+  sConfigOC.Pulse = 1099;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;

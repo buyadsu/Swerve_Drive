@@ -50,6 +50,9 @@ void JOYSTICK_Process(void) {
                 _current_data.buttons = buttons;
                 _new_data_available = true;
 
+//                printf("dpad: 0x%04hx, buttons: 0x%04hx, axis L: %ld, %ld, axis R: %ld, %ld, brake: %ld, throttle: %ld, misc: 0x%04hx\n",
+//                		dpad, buttons, ax, ay, rax, ray, brake, throttle, misc);
+
                 // Reset buffer
                 memset(_data_buffer, 0, sizeof(_data_buffer));
                 _buf_index = 0;
