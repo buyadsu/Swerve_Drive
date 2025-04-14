@@ -19,7 +19,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "joystick.h"
@@ -36,7 +35,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define DEBUG_PRINT
+//#define DEBUG_PRINT
 //#define TEST
 /* USER CODE END PD */
 
@@ -46,8 +45,9 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+
 COM_InitTypeDef BspCOMInit;
-volatile uint32_t BspButtonState = 0;  // Changed from __IO to volatile
+__IO uint32_t BspButtonState = BUTTON_RELEASED;
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
@@ -59,6 +59,7 @@ TIM_HandleTypeDef htim17;
 TIM_HandleTypeDef htim20;
 
 UART_HandleTypeDef huart4;
+UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 float xSpeed = 0.0f, ySpeed = 0.0f, rot = 0.0f;
@@ -72,16 +73,6 @@ bool PASS_State = false;
 bool ZALAH_State = false;
 bool lastLockModeButtonState = false;
 LockMode currentLockMode = LOCK_MODE_DISABLED;
-
-// Define motor PWM channels
-#define MOTOR1_TIM    htim5
-#define MOTOR1_CH     TIM_CHANNEL_2
-
-#define MOTOR2_TIM    htim17
-#define MOTOR2_CH     TIM_CHANNEL_1
-
-#define MOTOR3_TIM    htim16
-#define MOTOR3_CH     TIM_CHANNEL_1
 
 // Swerve drive data structure
 SwerveDriveData swerveData;
@@ -100,8 +91,41 @@ static void MX_UART4_Init(void);
 static void MX_TIM16_Init(void);
 static void MX_TIM17_Init(void);
 static void MX_TIM5_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
+void calibrate_motor()
+{
+    BSP_LED_Toggle(LED_GREEN);
+    HAL_Delay(100);
+    BSP_LED_Toggle(LED_GREEN);
+    HAL_Delay(100);
+    BSP_LED_On(LED_GREEN);
+    // Send maximum throttle pulse for ESC calibration
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 1940-1);
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 1940-1);
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 1940-1);
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 1940-1);
 
+    HAL_Delay(9000);  // Wait 2 seconds (adjust as needed)
+
+    BSP_LED_Toggle(LED_GREEN);
+    HAL_Delay(100);
+    BSP_LED_Toggle(LED_GREEN);
+    HAL_Delay(100);
+    BSP_LED_On(LED_GREEN);
+    // Then send minimum throttle pulse to complete calibration
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 1100-1);
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 1100-1);
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 1100-1);
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 1100-1);
+    HAL_Delay(8000);
+
+    BSP_LED_Toggle(LED_GREEN);
+    HAL_Delay(100);
+    BSP_LED_Toggle(LED_GREEN);
+    HAL_Delay(100);
+    BSP_LED_Off(LED_GREEN);
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -117,31 +141,31 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-  SwerveModule moduleRF = {	// Configuration moduleRF
-	  .steering = {
-	      .dir_gpio_port = IN2_GPIO_Port,
-	      .dir_gpio_pin = IN2_Pin,
-	      .pwm_tim = &htim3,
-	      .pwm_channel = TIM_CHANNEL_2,
-          .encoder_tim = &htim1,
-	      .Kp = 5.0f,
-	      .Ki = 0.1f,
-	      .Kd = 0.01f,
-	      .integral_limit = 500.0f,
-	      .dt = 0.1f,
-		  .max_pwm = 199
-	  },
-	  .driving = {
-	      .pwm_tim = &htim2,
-	      .pwm_channel = TIM_CHANNEL_1,
-	      .min_pulse = 1110-1,
-	      .max_pulse = 1400-1,
-	      .arming_pulse = 1100-1
-	  },
-	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
+  SwerveModule moduleLF = {	// Configuration moduleRF
+		  .steering = {
+		      .dir_gpio_port = IN3_GPIO_Port,
+		      .dir_gpio_pin = IN3_Pin,
+		      .pwm_tim = &htim3,
+		      .pwm_channel = TIM_CHANNEL_3,
+	        .encoder_tim = &htim20,
+		      .Kp = 2.5f,
+		      .Ki = 0.1f,
+		      .Kd = 0.01f,
+		      .integral_limit = 500.0f,
+		      .dt = 0.1f,
+			  .max_pwm = 199
+		  },
+		  .driving = {
+		      .pwm_tim = &htim2,
+		      .pwm_channel = TIM_CHANNEL_4,
+		      .min_pulse = 1110-1,
+		      .max_pulse = 1400-1,
+		      .arming_pulse = 1100-1
+		  },
+		  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
   };
 
-  SwerveModule moduleLF = {	// Configuration moduleRF
+  SwerveModule moduleRF = {	// Configuration moduleRF
 	  .steering = {
 	      .dir_gpio_port = IN4_GPIO_Port,
 	      .dir_gpio_pin = IN4_Pin,
@@ -165,7 +189,7 @@ int main(void)
 	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
   };
 
-  SwerveModule moduleRB = {	// Configuration moduleRF
+  SwerveModule moduleLB = {	// Configuration moduleRF
 	  .steering = {
 	      .dir_gpio_port = IN1_GPIO_Port,
 	      .dir_gpio_pin = IN1_Pin,
@@ -189,28 +213,28 @@ int main(void)
 	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
   };
 
-  SwerveModule moduleLB = {	// Configuration moduleRF
-	  .steering = {
-	      .dir_gpio_port = IN3_GPIO_Port,
-	      .dir_gpio_pin = IN3_Pin,
-	      .pwm_tim = &htim3,
-	      .pwm_channel = TIM_CHANNEL_3,
-          .encoder_tim = &htim20,
-	      .Kp = 2.5f,
-	      .Ki = 0.1f,
-	      .Kd = 0.01f,
-	      .integral_limit = 500.0f,
-	      .dt = 0.1f,
-		  .max_pwm = 199
-	  },
-	  .driving = {
-	      .pwm_tim = &htim2,
-	      .pwm_channel = TIM_CHANNEL_4,
-	      .min_pulse = 1110-1,
-	      .max_pulse = 1400-1,
-	      .arming_pulse = 1100-1
-	  },
-	  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
+  SwerveModule moduleRB = {	// Configuration moduleRF
+		  .steering = {
+		      .dir_gpio_port = IN2_GPIO_Port,
+		      .dir_gpio_pin = IN2_Pin,
+		      .pwm_tim = &htim3,
+		      .pwm_channel = TIM_CHANNEL_2,
+	          .encoder_tim = &htim1,
+		      .Kp = 5.0f,
+		      .Ki = 0.1f,
+		      .Kd = 0.01f,
+		      .integral_limit = 500.0f,
+		      .dt = 0.1f,
+			  .max_pwm = 199
+		  },
+		  .driving = {
+		      .pwm_tim = &htim2,
+		      .pwm_channel = TIM_CHANNEL_1,
+		      .min_pulse = 1110-1,
+		      .max_pulse = 1400-1,
+		      .arming_pulse = 1100-1
+		  },
+		  .counts_per_degree = ROBOT_STEERING_GEAR_RATIO / (float)(STEERING_ENCODER_RESOLUTION * 8) // Adjust based on encoder
   };
   /* USER CODE END 1 */
 
@@ -243,22 +267,29 @@ int main(void)
   MX_TIM16_Init();
   MX_TIM17_Init();
   MX_TIM5_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  // Initialization
+  // Initialize swerve drive
+  SD_Init();
+  SD_SetLockMode(LOCK_MODE_45_DEG);
+
+  // Initialize swerve modules
   SM_Init(&moduleRF);
   SM_Init(&moduleLF);
   SM_Init(&moduleRB);
   SM_Init(&moduleLB);
 
   // Start PWM timers
+  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_4);
+  HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_4);
   HAL_TIM_PWM_Start(&htim16, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
-
-  // Initialize swerve drive
-  SD_Init();
-  SD_SetLockMode(LOCK_MODE_LAST_ANGLE);
-  /* USER CODE END 2 */
 
   /* Initialize led */
   BSP_LED_Init(LED_GREEN);
@@ -284,9 +315,9 @@ int main(void)
   /* -- Sample board code to switch on led ---- */
   BSP_LED_On(LED_GREEN);
   // Before setting PWM values:
-  HAL_GPIO_WritePin(MOTOR1_GPIO_Port, MOTOR1_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(MOTOR2_GPIO_Port, MOTOR2_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(MOTOR3_GPIO_Port, MOTOR3_Pin, GPIO_PIN_SET);
+//  HAL_GPIO_WritePin(MOTOR1_GPIO_Port, MOTOR1_Pin, GPIO_PIN_SET);
+//  HAL_GPIO_WritePin(MOTOR2_GPIO_Port, MOTOR2_Pin, GPIO_PIN_SET);
+//  HAL_GPIO_WritePin(MOTOR3_GPIO_Port, MOTOR3_Pin, GPIO_PIN_SET);
   // Repeat for other motors as needed
   /* USER CODE END BSP */
 
@@ -294,151 +325,66 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	    /* -- Sample board code for User push-button in interrupt mode ---- */
+	    if (BspButtonState == BUTTON_PRESSED)
+	    {
+	      /* Update button state */
+	      BspButtonState = BUTTON_RELEASED;
+	      /* -- Sample board code to toggle led ---- */
+	      BSP_LED_Toggle(LED_GREEN);
 
-    /* -- Sample board code for User push-button in interrupt mode ---- */
-    if (BspButtonState == BUTTON_PRESSED)
-    {
-      /* Update button state */
-      BspButtonState = BUTTON_RELEASED;
-      /* -- Sample board code to toggle led ---- */
-      BSP_LED_Toggle(LED_GREEN);
-    }
+	      calibrate_motor();
+	    }
+        JOYSTICK_Process();
+
+        // Normal joystick control code
+        if (JOYSTICK_NewDataAvailable()) {
+        	JoystickData data = JOYSTICK_GetData();
+        	lastJoystickUpdate = HAL_GetTick();  // Reset timeout timer
+
+            // Scale joystick inputs to [-1, 1] range with deadband
+            xSpeed = (float)data.axisX / 512.0f;
+            ySpeed = -(float)data.axisY / 512.0f;  // Invert Y axis for intuitive control
+            rot = (float)data.axisRX / 512.0f;
+
+            // Apply deadband to prevent drift
+            SD_ApplyDeadband(&xSpeed, &ySpeed, &rot);
+
+//            printf("Buttons (Hex): 0x%04X\n", data.buttons);
+
+            // Handle lock mode toggle (using button 0x0010)
+            bool currentLockModeButtonState = (data.buttons & 0x0010) != 0;
+            if (currentLockModeButtonState && !lastLockModeButtonState) {
+                // Toggle through lock modes
+                currentLockMode = (currentLockMode + 1) % 3;  // Cycle through 0, 1, 2
+                SD_SetLockMode(currentLockMode);
+                printf("Lock mode changed to: %d\n", currentLockMode);
+            }
+            lastLockModeButtonState = currentLockModeButtonState;
+
+
+            // Update kinematics and modules
+            SD_UpdateKinematics(xSpeed, ySpeed, rot, &swerveData);
+            SD_UpdateModules(&swerveData, &moduleRF, &moduleLF, &moduleRB, &moduleLB);
+        }
+
     /* USER CODE END WHILE */
+/*
+encoder timer aldaad bn ylanguya 4. Hulhi omron baij magdgu omron solij uzej bolno
+tged validate data bnu gedgiig shalgaj uzeh
+tgku bol subsystem 2 avtomataar ajilaad bn
+swerve baga zereg smooth bolgoh
 
+tged zalah garj irsen tohioldold zaldag button dahiad darval motor irgdeg nohtsol tavih
+ catapult ayulgui ajilgaag hangah davhar nohtsol hynah
+
+ sensor tavij zarim zuilsiig automation juulah
+ button evteihen bolgoh
+ *
+ *
+ */
     /* USER CODE BEGIN 3 */
-    JOYSTICK_Process();
-
-    if (JOYSTICK_NewDataAvailable()) {
-    	JoystickData data = JOYSTICK_GetData();
-    	lastJoystickUpdate = HAL_GetTick();  // Reset timeout timer
-
-        xSpeed = (float)data.axisX / 512.0f;
-        ySpeed = (float)data.axisY / -512.0f;
-        rot = (float)data.axisRX / -512.0f;
-
-		#ifdef DEBUG_PRINT
-			printf("X: %ld, Y: %ld, RX: %ld\n", data.axisX, data.axisY, data.axisRX);
-		#endif
-
-        // Add data validation
-        if(xSpeed < -512 || xSpeed > 511 ||
-           ySpeed < -512 || ySpeed > 511) {
-
-        	xSpeed = 0.0f;
-        	ySpeed = 0.0f;
-        	rot = 0.0f;
-            printf("Invalid joystick data!\r\n");
-        }
-
-        printf("Buttons (Hex): 0x%04X\n", data.buttons);
-
-        // Handle lock mode toggle (using button 0x0010)
-        bool currentLockModeButtonState = (data.buttons & 0x0010) != 0;
-        if (currentLockModeButtonState && !lastLockModeButtonState) {
-            // Toggle through lock modes
-            currentLockMode = (currentLockMode + 1) % 3;  // Cycle through 0, 1, 2
-            SD_SetLockMode(currentLockMode);
-            printf("Lock mode changed to: %d\n", currentLockMode);
-        }
-        lastLockModeButtonState = currentLockModeButtonState;
-
-        // Control relays based on buttons
-        if (data.buttons & 0x0001) { // sungah tsylinder
-            HAL_GPIO_WritePin(RELAY1_GPIO_Port, RELAY1_Pin, GPIO_PIN_SET);
-            printf("relay1\n");
-        } else {
-            HAL_GPIO_WritePin(RELAY1_GPIO_Port, RELAY1_Pin, GPIO_PIN_RESET);
-        }
-
-        // Assume we toggle using button bit 0.
-        bool currentZalahState = (data.buttons & 0x0004) != 0;
-
-        // Detect rising edge: current is pressed and last was not.
-        if (currentZalahState && !lastZalahState) {
-            zalahState = !zalahState;  // Toggle relay state
-
-            if (zalahState) { // Zalah 		damjuulah tsylinder ajilaagu bh ystoi
-                printf("zalah\n");
-                HAL_GPIO_WritePin(RELAY2_GPIO_Port, RELAY2_Pin, GPIO_PIN_SET);
-                HAL_Delay(3000);
-                HAL_GPIO_WritePin(MOTOR1_GPIO_Port, MOTOR1_Pin, GPIO_PIN_SET);
-                __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_2, 199);
-                HAL_Delay(450);
-
-                HAL_GPIO_WritePin(MOTOR1_GPIO_Port, MOTOR1_Pin, GPIO_PIN_RESET);
-                __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_2, 199);
-                HAL_Delay(900);
-
-                __HAL_TIM_SET_COMPARE(&MOTOR1_TIM, MOTOR1_CH, 0);
-                HAL_Delay(1000);
-
-                HAL_GPIO_WritePin(RELAY2_GPIO_Port, RELAY2_Pin, GPIO_PIN_RESET);
-                HAL_Delay(4000);
-                zalahState = false;
-            } else {
-                __HAL_TIM_SET_COMPARE(&MOTOR1_TIM, MOTOR1_CH, 0);
-            }
-        }
-
-        // Update last button state for edge detection in the next loop iteration.
-        lastZalahState = currentZalahState;
-
-        // Assume we toggle using button bit 0.
-        bool currentButtonState = (data.buttons & 0x0008) != 0;
-
-        // Detect rising edge: current is pressed and last was not.
-        if (currentButtonState && !lastButtonState) {
-            throwState = !throwState;  // Toggle relay state
-
-            if (throwState) {
-                printf("shideh\n");
-//                HAL_GPIO_WritePin(MOTOR1_GPIO_Port, MOTOR1_Pin, GPIO_PIN_SET);
-//                HAL_GPIO_WritePin(MOTOR2_GPIO_Port, MOTOR2_Pin, GPIO_PIN_SET);
-                __HAL_TIM_SET_COMPARE(&htim16, TIM_CHANNEL_1, 1450);
-                __HAL_TIM_SET_COMPARE(&htim17, TIM_CHANNEL_1, 1450);
-            } else {
-                __HAL_TIM_SET_COMPARE(&htim16, TIM_CHANNEL_1, 1099);
-                __HAL_TIM_SET_COMPARE(&htim17, TIM_CHANNEL_1, 1099);
-            }
-        }
-
-        // Update last button state for edge detection in the next loop iteration.
-        lastButtonState = currentButtonState;
-    }
-    HAL_Delay(10);
-
-    // If no joystick data received for TIMEOUT_MS, stop the motors
-    if (HAL_GetTick() - lastJoystickUpdate > TIMEOUT_MS) {
-        xSpeed = 0.0f;
-        ySpeed = 0.0f;
-        rot = 0.0f;
-
-        printf("Joystick connection lost.\n");
-        lastJoystickUpdate = HAL_GetTick();
-    }
-
-    printf("xSpeed: %f, ySpeed: %f, Rot: %f\n", xSpeed, ySpeed, rot);
-
-#ifdef TEST
-    // Test code remains unchanged
-#else
-    // Update swerve drive kinematics
-    SD_UpdateKinematics(xSpeed, ySpeed, rot, &swerveData);
-    
-    // Update all modules with the calculated values
-    SD_UpdateModules(&swerveData, &moduleRF, &moduleLF, &moduleRB, &moduleLB);
-
-#ifdef DEBUG_PRINT
-    // Debug prints for each wheel's speed and angle
-//    printf("\n==== Wheel Data ====\n");
-//    printf("RF -> Angle: %.2f°, Speed: %.2f\n", swerveData.rf.angle, swerveData.rf.speed);
-//    printf("LF -> Angle: %.2f°, Speed: %.2f\n", swerveData.lf.angle, swerveData.lf.speed);
-//    printf("RB -> Angle: %.2f°, Speed: %.2f\n", swerveData.rb.angle, swerveData.rb.speed);
-//    printf("LB -> Angle: %.2f°, Speed: %.2f\n", swerveData.lb.angle, swerveData.lb.speed);
-#endif // DEBUG_PRINT
-
-#endif // TEST
-
+        HAL_Delay(10);
   }
   /* USER CODE END 3 */
 }
@@ -852,7 +798,7 @@ static void MX_TIM16_Init(void)
   htim16.Instance = TIM16;
   htim16.Init.Prescaler = 170-1;
   htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim16.Init.Period = 2000-1;
+  htim16.Init.Period = 1999;
   htim16.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim16.Init.RepetitionCounter = 0;
   htim16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -869,7 +815,8 @@ static void MX_TIM16_Init(void)
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET; // Changed from SET  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  sConfigOC.OCIdleState = TIM_OCIDLESTATE_SET;
+  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
   if (HAL_TIM_PWM_ConfigChannel(&htim16, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
@@ -914,7 +861,7 @@ static void MX_TIM17_Init(void)
   htim17.Instance = TIM17;
   htim17.Init.Prescaler = 170-1;
   htim17.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim17.Init.Period = 2000-1;
+  htim17.Init.Period = 1999;
   htim17.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim17.Init.RepetitionCounter = 0;
   htim17.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -1056,6 +1003,54 @@ static void MX_UART4_Init(void)
 }
 
 /**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 115200;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart3.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart3.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart3, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart3, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -1073,27 +1068,27 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, IN1_Pin|IN2_Pin|IN3_Pin|IN4_Pin
+                          |MOTOR3_Pin|MOTOR2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, (IN1_Pin | IN2_Pin | IN3_Pin | IN4_Pin | MOTOR3_Pin | MOTOR2_Pin), GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, (RELAY2_Pin | RELAY1_Pin), GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, RELAY2_Pin|RELAY1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(MOTOR1_GPIO_Port, MOTOR1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : IN1_Pin IN2_Pin IN3_Pin IN4_Pin
                            MOTOR3_Pin MOTOR2_Pin */
-  GPIO_InitStruct.Pin = (IN1_Pin | IN2_Pin | IN3_Pin | IN4_Pin | MOTOR3_Pin | MOTOR2_Pin);
+  GPIO_InitStruct.Pin = IN1_Pin|IN2_Pin|IN3_Pin|IN4_Pin
+                          |MOTOR3_Pin|MOTOR2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : RELAY2_Pin RELAY1_Pin */
-  GPIO_InitStruct.Pin = (RELAY2_Pin | RELAY1_Pin);
+  GPIO_InitStruct.Pin = RELAY2_Pin|RELAY1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1103,7 +1098,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = MOTOR1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(MOTOR1_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
