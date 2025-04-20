@@ -68,6 +68,8 @@ float SM_GetCurrentAngle(SwerveModule* module) {
 		printf("Encoder Counts: %ld\n", counts);
 	#endif
 
+		printf("Encoder Counts: %ld\n", counts);
+
     // Convert the encoder counts to an angle.
     // (Assumes module->counts_per_degree is set appropriately.)
     return counts * module->counts_per_degree * 360.0f;
@@ -134,7 +136,8 @@ static void set_steering_pwm(SteeringMotor* motor, int16_t pwm) {
 		printf("Direction: %d, pwm: %d\n", direction, pwm);
 	#endif
 
-    HAL_GPIO_WritePin(motor->dir_gpio_port, motor->dir_gpio_pin, direction);
+    HAL_GPIO_WritePin(motor->dira_gpio_port, motor->dira_gpio_pin, direction);
+    HAL_GPIO_WritePin(motor->dirb_gpio_port, motor->dirb_gpio_pin, !direction);
     __HAL_TIM_SET_COMPARE(motor->pwm_tim, motor->pwm_channel, (uint16_t)pwm);
 }
 

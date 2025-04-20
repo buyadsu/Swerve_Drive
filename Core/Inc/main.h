@@ -81,18 +81,14 @@ void Error_Handler(void);
 #define Steering_PWM3_GPIO_Port GPIOB
 #define Steering_PWM4_Pin GPIO_PIN_1
 #define Steering_PWM4_GPIO_Port GPIOB
-#define IN1_Pin GPIO_PIN_12
-#define IN1_GPIO_Port GPIOB
-#define IN2_Pin GPIO_PIN_13
-#define IN2_GPIO_Port GPIOB
-#define IN3_Pin GPIO_PIN_14
-#define IN3_GPIO_Port GPIOB
-#define IN4_Pin GPIO_PIN_15
-#define IN4_GPIO_Port GPIOB
-#define RELAY2_Pin GPIO_PIN_8
-#define RELAY2_GPIO_Port GPIOC
-#define RELAY1_Pin GPIO_PIN_9
-#define RELAY1_GPIO_Port GPIOC
+#define INB1_Pin GPIO_PIN_12
+#define INB1_GPIO_Port GPIOB
+#define INB2_Pin GPIO_PIN_13
+#define INB2_GPIO_Port GPIOB
+#define INB3_Pin GPIO_PIN_14
+#define INB3_GPIO_Port GPIOB
+#define INB4_Pin GPIO_PIN_15
+#define INB4_GPIO_Port GPIOB
 #define Driving_PWM3_Pin GPIO_PIN_9
 #define Driving_PWM3_GPIO_Port GPIOA
 #define Driving_PWM4_Pin GPIO_PIN_10
@@ -101,14 +97,16 @@ void Error_Handler(void);
 #define T_SWDIO_GPIO_Port GPIOA
 #define T_SWCLK_Pin GPIO_PIN_14
 #define T_SWCLK_GPIO_Port GPIOA
-#define MOTOR1_Pin GPIO_PIN_2
-#define MOTOR1_GPIO_Port GPIOD
 #define T_SWO_Pin GPIO_PIN_3
 #define T_SWO_GPIO_Port GPIOB
-#define MOTOR3_Pin GPIO_PIN_8
-#define MOTOR3_GPIO_Port GPIOB
-#define MOTOR2_Pin GPIO_PIN_9
-#define MOTOR2_GPIO_Port GPIOB
+#define INA1_Pin GPIO_PIN_4
+#define INA1_GPIO_Port GPIOB
+#define INA2_Pin GPIO_PIN_5
+#define INA2_GPIO_Port GPIOB
+#define INA3_Pin GPIO_PIN_6
+#define INA3_GPIO_Port GPIOB
+#define INA4_Pin GPIO_PIN_7
+#define INA4_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

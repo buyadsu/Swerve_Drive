@@ -11,9 +11,9 @@
 #define ROBOT_STEERING_GEAR_RATIO 2.0f // Gear ratio of steering motors
 #define STEERING_ENCODER_RESOLUTION 1000.0 // Encoder resolution
 #define STEERING_DEADZONE 2.0f  // Degrees
-#define SPEED_DEADZONE 0.02f    // Reduced from 0.05f to be more responsive at low speeds
+#define SPEED_DEADZONE 0.05f    // Reduced from 0.05f to be more responsive at low speeds
 #define DEADZONE 0.02f     // Reduced deadzone for more responsive control
-#define MAX_CHANGE_RATE 0.7f  // Increased for faster response
+#define MAX_CHANGE_RATE 0.85f  // Increased for faster response
 #define TIMEOUT_MS 500         // Timeout for joystick disconnect detection
 
 // Lock mode angles (in degrees)

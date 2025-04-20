@@ -30,26 +30,26 @@ LockMode SD_GetLockMode(void) {
 void SD_UpdateKinematics(float xSpeed, float ySpeed, float rot, SwerveDriveData* data) {
     // Front Right (RF)
     float rf_x = xSpeed + (rot * (ROBOT_LENGTH / 2.0f));
-    float rf_y = ySpeed + (rot * (ROBOT_WIDTH / 2.0f));
-    data->rf.angle = atan2f(rf_x, rf_y) * (180.0f / (float)M_PI);
+    float rf_y = ySpeed - (rot * (ROBOT_WIDTH / 2.0f));
+    data->rf.angle = atan2f(rf_x, rf_y) * (180.0f / (float)M_PI) + 180.0f;
     data->rf.speed = sqrtf(rf_x * rf_x + rf_y * rf_y);
 
     // Front Left (LF)
     float lf_x = xSpeed + (rot * (ROBOT_LENGTH / 2.0f));
-    float lf_y = ySpeed - (rot * (ROBOT_WIDTH / 2.0f));
-    data->lf.angle = atan2f(lf_x, lf_y) * (180.0f / (float)M_PI);
+    float lf_y = ySpeed + (rot * (ROBOT_WIDTH / 2.0f));
+    data->lf.angle = atan2f(lf_x, lf_y) * (180.0f / (float)M_PI) + 180.0f;
     data->lf.speed = sqrtf(lf_x * lf_x + lf_y * lf_y);
 
     // Rear Right (RB)
     float rb_x = xSpeed - (rot * (ROBOT_LENGTH / 2.0f));
-    float rb_y = ySpeed + (rot * (ROBOT_WIDTH / 2.0f));
-    data->rb.angle = atan2f(rb_x, rb_y) * (180.0f / (float)M_PI);
+    float rb_y = ySpeed - (rot * (ROBOT_WIDTH / 2.0f));
+    data->rb.angle = atan2f(rb_x, rb_y) * (180.0f / (float)M_PI) + 180.0f;
     data->rb.speed = sqrtf(rb_x * rb_x + rb_y * rb_y);
 
     // Rear Left (LB)
     float lb_x = xSpeed - (rot * (ROBOT_LENGTH / 2.0f));
-    float lb_y = ySpeed - (rot * (ROBOT_WIDTH / 2.0f));
-    data->lb.angle = atan2f(lb_x, lb_y) * (180.0f / (float)M_PI);
+    float lb_y = ySpeed + (rot * (ROBOT_WIDTH / 2.0f));
+    data->lb.angle = atan2f(lb_x, lb_y) * (180.0f / (float)M_PI) + 180.0f;
     data->lb.speed = sqrtf(lb_x * lb_x + lb_y * lb_y);
 
     // Normalize speeds if any exceeds 1.0

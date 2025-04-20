@@ -12,11 +12,15 @@
 #include <stdbool.h>
 #include <math.h>
 
+//#define DEBUG_PRINT
+
 // Steering Motor Configuration Structure
 typedef struct {
     // GPIO Configuration
-    GPIO_TypeDef* dir_gpio_port;
-    uint16_t dir_gpio_pin;
+    GPIO_TypeDef* dira_gpio_port;
+    uint16_t dira_gpio_pin;
+    GPIO_TypeDef* dirb_gpio_port;
+    uint16_t dirb_gpio_pin;
 
     // PWM Timer Configuration
     TIM_HandleTypeDef* pwm_tim;
